@@ -20,6 +20,7 @@ Two pages on one Cloudflare Worker with a D1 database:
 - `POST /api/enquiries` — public; saves or updates an enquiry (same id = same enquiry, so tapping both buttons doesn't duplicate). Numbers run E-1001, E-1002…
 - `GET /api/team/enquiries` — all enquiries with team notes
 - `POST /api/team/enquiries/:id/notes` — `{author, text, due_date ("" clears), status}`
+- `PUT /api/team/enquiries/:id/items` — `{author, items}` replaces the products; the change is logged in team updates
 - `GET /api/team/prices` — dealer prices
 
 ## Deploy (one time)

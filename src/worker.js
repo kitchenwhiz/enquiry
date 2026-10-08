@@ -4,6 +4,7 @@
 // Team:    GET /team         team enquiries page (public/team/index.html)
 //          GET  /api/team/enquiries            list with notes
 //          POST /api/team/enquiries/:id/notes  add a comment / set follow-up date / status
+//          PUT  /api/team/enquiries/:id/items  replace the products (logged in team updates)
 //          GET  /api/team/prices               dealer prices
 // Everything under /team and /api/team can later be put behind Cloudflare Access (see README).
 import PRICES from './prices.js';
@@ -137,6 +138,37 @@ async function addNote(req, env, id) {
   return json({ ok: true });
 }
 
+async function saveItems(req, env, id) {
+  let body;
+  try { body = await req.json(); } catch { return bad('Send the products as JSON.'); }
+  const db = env.DB;
+  const enq = await db.prepare('SELECT id, items FROM enquiries WHERE id = ?').bind(id).first();
+  if (!enq) return bad('Enquiry not found.', 404);
+  const author = str(body.author, 80);
+  if (!author) return bad('Enter your name so the team knows who updated it.');
+  const items = cleanItems(body.items);
+  const before = JSON.parse(enq.items || '[]');
+  // describe the change for the updates log
+  const key = (i) => i.m.toLowerCase();
+  const old = new Map(before.map((i) => [key(i), i]));
+  const neu = new Map(items.map((i) => [key(i), i]));
+  const parts = [];
+  for (const [k, i] of neu) {
+    const o = old.get(k);
+    if (!o) parts.push(`added ${i.m} ×${i.qty}`);
+    else if (o.qty !== i.qty) parts.push(`${i.m} qty ${o.qty} → ${i.qty}`);
+  }
+  for (const [k, o] of old) if (!neu.has(k)) parts.push(`removed ${o.m}`);
+  if (!parts.length) return bad('No changes to the products.');
+  const t = now();
+  await db.batch([
+    db.prepare('UPDATE enquiries SET items = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(items), t, id),
+    db.prepare('INSERT INTO notes (enquiry_id, created_at, author, text, due_date, status) VALUES (?, ?, ?, ?, NULL, NULL)')
+      .bind(id, t, author, 'Products: ' + parts.join('; ')),
+  ]);
+  return json({ ok: true });
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -148,6 +180,8 @@ export default {
       if (p === '/api/team/enquiries' && req.method === 'GET') return await listEnquiries(env);
       const m = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/notes$/);
       if (m && req.method === 'POST') return await addNote(req, env, m[1]);
+      const mi = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/items$/);
+      if (mi && req.method === 'PUT') return await saveItems(req, env, mi[1]);
       if (p === '/api/team/prices' && req.method === 'GET') return json({ prices: PRICES, wef: '2026-04-01', note: 'Dealer price (DP), GST extra' });
       return bad('Not found.', 404);
     } catch (e) {

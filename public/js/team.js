@@ -11,7 +11,7 @@ const TABS = [
   { k: "lost", label: "Lost", test: (e) => e.status === "lost" },
   { k: "all", label: "All", test: () => true },
 ];
-const state = { all: [], prices: {}, tab: "action", q: "", open: new Set(), drafts: {}, loadedAt: null, busy: false };
+const state = { all: [], prices: {}, edit: {}, tab: "action", q: "", open: new Set(), drafts: {}, loadedAt: null, busy: false };
 
 function today(offset = 0) {
   const d = new Date(); d.setDate(d.getDate() + offset);
@@ -84,8 +84,52 @@ function dueChip(e) {
   return `<span class="due ${cls}">${txt}</span>`;
 }
 
+/* ---------- product editor ---------- */
+const PRODUCTS = (window.HW_PRODUCTS || []).map((d) => ({ ...d,
+  h: (d.m + " " + d.m.replace(/[\s\-\/]/g, "") + " " + d.d + " " + d.d.replace(/[\s\-\/]/g, "") + " " + d.c + " " + d.b).toLowerCase(),
+  mc: d.m.toLowerCase().replace(/[\s\-\/]/g, ""), parts: d.m.toLowerCase().split("/").map((x) => x.replace(/[\s\-]/g, "")) }));
+function findProducts(q) {
+  const toks = q.toLowerCase().split(/\s+/).filter(Boolean); if (!toks.length) return [];
+  const qc = q.toLowerCase().replace(/[\s\-\/]/g, "");
+  const score = (d) => { const i = d.mc.indexOf(qc); return d.mc === qc ? 0 : i === 0 || d.parts.some((x) => x.startsWith(qc)) ? 1 : i > 0 ? 2 : 3; };
+  return PRODUCTS.filter((d) => toks.every((t) => d.h.includes(t))).map((d) => [score(d), d.mc.length, d]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((x) => x[2]).slice(0, 20);
+}
+function editorHtml(e) {
+  const ed = state.edit[e.id];
+  const rows = ed.items.length ? ed.items.map((i, n) => {
+    const p = state.prices[i.m];
+    return `<div class="erow"><div style="min-width:0"><div class="code">${esc(i.m)}</div><div class="meta">${esc([i.b, i.c, i.d].filter(Boolean).join(" · "))}${p != null ? " · DP " + inr(p) : ""}</div></div>
+      <input type="number" min="1" max="9999" value="${i.qty}" data-eq="${n}" aria-label="Quantity of ${esc(i.m)}">
+      <button type="button" class="x" data-er="${n}" aria-label="Remove ${esc(i.m)}">×</button></div>`;
+  }).join("") : `<div class="meta" style="padding:4px 0">No products yet. Add them below.</div>`;
+  return `<div class="ped" data-ped="${e.id}"><div class="lbl">Products · editing</div>
+    <div class="erows">${rows}</div>
+    <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input data-es="${e.id}" type="search" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="Add a model: type the model number, then Enter" aria-label="Add a model">
+      <div class="pop" data-epop hidden></div></div>
+    <div class="eact"><button type="button" class="save" data-esave="${e.id}">Save products</button><button type="button" class="linkbtn" data-ecancel="${e.id}">Cancel</button></div>
+    <div class="msg" data-eerr></div></div>`;
+}
+function renderPop(id) {
+  const ed = state.edit[id], box = document.querySelector(`[data-ped="${id}"] [data-epop]`); if (!box) return;
+  if (!ed.q.trim()) { box.hidden = true; return; }
+  ed.list = findProducts(ed.q); if (ed.active >= ed.list.length) ed.active = 0;
+  box.hidden = false;
+  box.innerHTML = ed.list.length ? ed.list.map((d, n) => `<div class="opt${n === ed.active ? " act" : ""}" data-eo="${n}"><div style="min-width:0"><div class="code">${esc(d.m)}</div>
+      <div class="meta"><span class="tag">${d.b}</span><span>${esc(d.c)}</span>${d.d ? `<span>· ${esc(d.d)}</span>` : ""}</div></div><span class="side">${state.prices[d.m] != null ? inr(state.prices[d.m]) : ""}</span></div>`).join("")
+    : `<div class="opt" data-etyped><div><div class="code">${esc(ed.q.trim())}</div><div class="meta">Not in the price list · add as typed</div></div><span class="side">↵</span></div>`;
+}
+function addToEditor(id, d) {
+  const ed = state.edit[id];
+  const ex = ed.items.find((i) => i.m.toLowerCase() === d.m.toLowerCase());
+  if (ex) ex.qty++; else ed.items.push({ b: d.b || "", c: d.c || "Not in list", m: d.m, d: d.d || "", qty: 1 });
+  ed.q = ""; ed.active = 0; render();
+  const inp = document.querySelector(`[data-es="${id}"]`); if (inp) inp.focus();
+}
+
 function itemsTable(e) {
-  if (!e.items.length) return "";
+  if (state.edit[e.id]) return editorHtml(e);
+  if (!e.items.length) return `<div><div class="lbl">Products</div><div class="cmt" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span>No products given.</span><button type="button" class="act" data-eopen="${e.id}">+ Add products</button></div></div>`;
   let total = 0, missing = 0;
   const rows = e.items.map((i) => {
     const p = state.prices[i.m];
@@ -93,7 +137,7 @@ function itemsTable(e) {
     return `<tr><td><div class="code">${esc(i.m)}</div><div class="meta">${esc([i.b, i.c, i.d].filter(Boolean).join(" · "))}</div></td>
       <td class="num">${i.qty}</td><td class="num">${p == null ? "—" : inr(p)}</td><td class="num">${p == null ? "—" : inr(p * i.qty)}</td></tr>`;
   }).join("");
-  return `<div><div class="lbl">Products</div><div class="tbl"><table>
+  return `<div><div class="lbl" style="display:flex;justify-content:space-between;align-items:center">Products<button type="button" class="linkbtn" data-eopen="${e.id}">Edit products</button></div><div class="tbl"><table>
     <thead><tr><th>Model</th><th class="num">Qty</th><th class="num">DP</th><th class="num">Amount</th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><td colspan="3">Total DP, GST extra${missing ? ` · ${missing} item${missing > 1 ? "s" : ""} without price` : ""}</td><td class="num">${inr(total)}</td></tr></tfoot>
@@ -169,6 +213,38 @@ $("#list").addEventListener("click", (ev) => {
   const q = ev.target.closest("[data-days]");
   if (q) { const f = q.closest("form"); f.due.value = q.dataset.days === "" ? "" : today(+q.dataset.days); keepDraft(f); }
 });
+$("#list").addEventListener("click", (ev) => {
+  const o = ev.target.closest("[data-eopen]");
+  if (o) { const e = state.all.find((x) => x.id === o.dataset.eopen); state.edit[e.id] = { items: e.items.map((i) => ({ ...i })), q: "", active: 0 }; render(); const inp = document.querySelector(`[data-es="${e.id}"]`); if (inp) inp.focus(); return; }
+  const ped = ev.target.closest("[data-ped]"); if (!ped) return;
+  const id = ped.dataset.ped, ed = state.edit[id];
+  const rm = ev.target.closest("[data-er]"); if (rm) { ed.items.splice(+rm.dataset.er, 1); render(); return; }
+  const op = ev.target.closest("[data-eo]"); if (op) { addToEditor(id, ed.list[+op.dataset.eo]); return; }
+  if (ev.target.closest("[data-etyped]")) { addToEditor(id, { m: ed.q.trim() }); return; }
+  if (ev.target.closest("[data-ecancel]")) { delete state.edit[id]; render(); return; }
+  const sv = ev.target.closest("[data-esave]");
+  if (sv) {
+    const err = $("[data-eerr]", ped);
+    if (!me()) { err.textContent = "Enter your name at the top (Updating as) first."; $("#me").focus(); return; }
+    sv.disabled = true; sv.textContent = "Saving…";
+    fetch(`/api/team/enquiries/${id}/items`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ author: me(), items: ed.items }) })
+      .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || r.statusText); }))
+      .then(() => { delete state.edit[id]; return load(true); })
+      .catch((x) => { err.textContent = x.message; sv.disabled = false; sv.textContent = "Save products"; });
+  }
+});
+$("#list").addEventListener("input", (ev) => {
+  const s1 = ev.target.closest("[data-es]"); if (s1) { const ed = state.edit[s1.dataset.es]; ed.q = s1.value; ed.active = 0; renderPop(s1.dataset.es); return; }
+  const q1 = ev.target.closest("[data-eq]"); if (q1) { const id = q1.closest("[data-ped]").dataset.ped; state.edit[id].items[+q1.dataset.eq].qty = Math.max(1, parseInt(q1.value, 10) || 1); }
+});
+$("#list").addEventListener("keydown", (ev) => {
+  const s1 = ev.target.closest("[data-es]"); if (!s1) return;
+  const id = s1.dataset.es, ed = state.edit[id], n = (ed.list || []).length;
+  if (ev.key === "ArrowDown" && n) { ev.preventDefault(); ed.active = (ed.active + 1) % n; renderPop(id); }
+  else if (ev.key === "ArrowUp" && n) { ev.preventDefault(); ed.active = (ed.active - 1 + n) % n; renderPop(id); }
+  else if (ev.key === "Enter") { ev.preventDefault(); if (!ed.q.trim()) return; if (n) addToEditor(id, ed.list[ed.active]); else addToEditor(id, { m: ed.q.trim() }); }
+  else if (ev.key === "Escape") { s1.value = ""; ed.q = ""; renderPop(id); }
+});
 $("#list").addEventListener("keydown", (ev) => { const h = ev.target.closest("[data-toggle]"); if (h && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); h.click(); } });
 function keepDraft(f) { state.drafts[f.dataset.upd] = { text: f.text.value, due: f.due.value, status: f.status.value }; }
 $("#list").addEventListener("input", (ev) => { const f = ev.target.closest("form[data-upd]"); if (f) keepDraft(f); });
@@ -192,5 +268,5 @@ $("#list").addEventListener("submit", async (ev) => {
 
 load();
 // refresh every minute and when the tab comes back, without losing typed drafts (kept in state.drafts)
-setInterval(() => { if (!document.hidden && !document.activeElement.closest?.("form[data-upd]")) load(true); }, 60000);
+setInterval(() => { if (!document.hidden && !Object.keys(state.edit).length && !document.activeElement.closest?.("form[data-upd]")) load(true); }, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(true); });
