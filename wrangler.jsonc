@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "enquiry",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // Database for enquiries and team notes. Tables are created automatically on first use.
+  // No database_id: Wrangler creates the database on the first deploy and remembers it.
+  // If a deploy ever asks for an id, create a D1 database named "enquiry-db" in Cloudflare
+  // and paste its id here as "database_id".
+  "d1_databases": [
+    { "binding": "DB", "database_name": "enquiry-db" }
+  ],
+  "observability": { "enabled": true }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "enquiry",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "gen": "python3 tools/hw/gen.py \"tools/hw/Hoshizaki Western price List 01 04 2026.xlsx\" ."
+  },
+  "devDependencies": {
+    "wrangler": "4.148.0"
+  }
+}
