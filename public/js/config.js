@@ -2,7 +2,7 @@
 window.ENQUIRY_CONFIG = {
   // WhatsApp group invite link, e.g. "https://chat.whatsapp.com/AbCdEf123..."
   // Empty: the group button opens WhatsApp with the message ready and lets the customer pick the group.
-  groupLink: "",
+  groupLink: "https://chat.whatsapp.com/JIhDW3M9PSbBPi42bjLzHA", // Western x unique steel products
   // Number for the "Send on WhatsApp" button: country code + number, digits only.
   phone: "919902014700",
   title: "New enquiry – Hoshizaki & Western"
