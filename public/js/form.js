@@ -232,13 +232,8 @@ $("#clearBtn").onclick=()=>{
   update();
 }));
 
-/* draft (this browser only) */
-const KEY="hw-enquiry-draft-v1";
-function saveDraft(){ try{ localStorage.setItem(KEY,JSON.stringify({n:$("#name").value,p:$("#phone").value,c:$("#comment").value,k:state.picked,id:state.id,s:state.sent})); }catch(_){} }
-function loadDraft(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||"null"); if(!s) return;
-  $("#name").value=s.n||""; $("#phone").value=s.p||""; $("#comment").value=s.c||"";
-  state.picked=(s.k||[]).filter(p=>p&&p.m);
-  if(s.id) state.id=s.id;
-  if(s.s && Date.now()-s.s.at<864e5) showDone(s.s.num); }catch(_){} }
+/* every fresh page load starts with an empty form: nothing is kept in the browser */
+function saveDraft(){}
+try{ localStorage.removeItem("hw-enquiry-draft-v1"); }catch(_){}
 
-loadDraft(); fillCats(); renderPicked(); render(); update();
+fillCats(); renderPicked(); render(); update();
