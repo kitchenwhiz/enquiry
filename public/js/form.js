@@ -3,8 +3,8 @@ const CONFIG = window.ENQUIRY_CONFIG;
 const DATA = window.HW_PRODUCTS;
 const $ = s => document.querySelector(s);
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/-/g,"");
-const state = { brand:"", cat:"", q:"", limit:40, picked:[], id:newId(), sent:null };
-DATA.forEach((d,i)=>{ d.id=i; d.h=(d.m+" "+d.m.replace(/[\s\-\/]/g,"")+" "+d.d+" "+d.c+" "+d.b).toLowerCase(); });
+const state = { brand:"", cat:"", q:"", limit:40, expanded:false, active:0, popOpen:false, picked:[], id:newId(), sent:null };
+DATA.forEach((d,i)=>{ d.id=i; d.h=(d.m+" "+d.m.replace(/[\s\-\/]/g,"")+" "+d.d+" "+d.d.replace(/[\s\-\/]/g,"")+" "+d.c+" "+d.b).toLowerCase(); d.mc=d.m.toLowerCase().replace(/[\s\-\/]/g,""); d.parts=d.m.toLowerCase().split("/").map(x=>x.replace(/[\s\-]/g,"")); });
 $("#total").textContent = DATA.length;
 
 /* category select */
@@ -24,9 +24,10 @@ function search(){
   const toks=state.q.toLowerCase().split(/\s+/).filter(Boolean);
   let list=DATA.filter(d=>(!state.brand||d.b===state.brand)&&(!state.cat||d.c===state.cat)&&toks.every(t=>d.h.includes(t)));
   if(toks.length){
-    const q0=toks[0], qc=state.q.toLowerCase().replace(/[\s\-\/]/g,"");
-    const score=d=>{const m=d.m.toLowerCase(), mc=m.replace(/[\s\-\/]/g,""); return (mc===qc?0:mc.startsWith(qc)?1:m.includes(q0)?2:3)};
-    list=list.map(d=>[score(d),d]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+    // model-number first: exact, then starts with, then contains (ignoring spaces, dashes, slashes)
+    const qc=state.q.toLowerCase().replace(/[\s\-\/]/g,"");
+    const score=d=>{ const i=d.mc.indexOf(qc); return d.mc===qc?0 : i===0?1 : d.parts.some(x=>x.startsWith(qc))?1 : i>0?2 : 3; };
+    list=list.map(d=>[score(d),d.mc.length,d]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]).map(x=>x[2]);
   }
   return {list,toks};
 }
@@ -34,7 +35,20 @@ function render(){
   const {list,toks}=search();
   const box=$("#results");
   const shown=list.slice(0,state.limit);
-  $("#count").textContent = list.length===DATA.length ? `${DATA.length} models · search or filter to narrow down` : `${list.length} of ${DATA.length} models`;
+  // list stays collapsed until the customer searches, filters or taps "Browse all models"
+  renderPop(list,toks);
+  const browsing=!state.q.trim()&&(state.brand||state.cat||state.expanded);
+  box.hidden=!browsing;
+  if(state.q.trim()){ $("#count").textContent=`${list.length} match${list.length===1?"":"es"} for “${state.q.trim()}”${state.brand?" in "+state.brand:""}${state.cat?" · "+state.cat:""}`; return; }
+  if(!browsing){
+    $("#count").innerHTML=`${DATA.length} models · type above to search, or <button type="button" class="linkbtn" id="browse">Browse all models</button>`;
+    $("#browse").onclick=()=>{state.expanded=true;render();};
+    return;
+  }
+  $("#count").textContent = list.length===DATA.length ? `${DATA.length} models` : `${list.length} of ${DATA.length} models`;
+  if(!state.q.trim()) $("#count").insertAdjacentHTML("beforeend",` · <button type="button" class="linkbtn" id="collapse">Hide list</button>`);
+  const col=$("#collapse"); if(col) col.onclick=()=>{state.expanded=false;state.brand="";state.cat="";state.limit=40;
+    document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.brand==="")));fillCats();render();};
   if(!list.length){
     box.innerHTML=`<div class="empty"><span>No model matches “${esc(state.q)}”${state.brand?" in "+state.brand:""}${state.cat?" · "+esc(state.cat):""}.</span>`+
       (state.q.trim()?`<button type="button" class="add" id="addTyped">Add “${esc(state.q.trim())}” to my list anyway</button>`:"")+`</div>`;
@@ -49,6 +63,36 @@ function render(){
   }).join("")+(list.length>shown.length?`<button type="button" class="more" id="more">Show ${Math.min(40,list.length-shown.length)} more of ${list.length-shown.length}</button>`:"");
   const more=$("#more"); if(more) more.onclick=()=>{state.limit+=40;render();};
 }
+function renderPop(list,toks){
+  const pop=$("#pop"), q=state.q.trim(), open=!!q&&state.popOpen;
+  pop.hidden=!open; $("#q").setAttribute("aria-expanded",String(open));
+  if(!open) return;
+  state.list=list.slice(0,30);
+  if(state.active>=state.list.length) state.active=Math.max(0,state.list.length-1);
+  if(!list.length){
+    pop.innerHTML=`<div class="empty"><span>No model matches “${esc(q)}”.</span><button type="button" class="add" data-typed>Add “${esc(q)}” as typed</button></div>`;
+    return;
+  }
+  pop.innerHTML=state.list.map((d,i)=>{
+    const p=state.picked.find(x=>x.id===d.id);
+    return `<div class="opt${i===state.active?" act":""}" role="option" id="opt${i}" aria-selected="${i===state.active}" data-i="${i}">
+      <div style="min-width:0"><div class="code">${hl(d.m,toks)}</div><div class="meta"><span class="tag">${d.b}</span><span>${esc(d.c)}</span>${d.d?`<span>· ${hl(d.d,toks)}</span>`:""}</div></div>
+      <span class="side">${p?"In list ×"+p.qty:""}${i===state.active?`<span class="k">↵</span>`:""}</span></div>`;
+  }).join("")+`<div class="pop-foot"><span>${list.length>30?`Top 30 of ${list.length}, keep typing`:`${list.length} match${list.length===1?"":"es"}`}</span><span class="keys">↑ ↓ move · Enter add · Esc close</span></div>`;
+  const a=$("#opt"+state.active); if(a) a.scrollIntoView({block:"nearest"});
+  $("#q").setAttribute("aria-activedescendant","opt"+state.active);
+}
+function pickFromPop(i){
+  const d=state.list&&state.list[i]; if(!d) return;
+  addItem(d); toast("Added "+d.m+". Type the next model.");
+  $("#q").value=""; state.q=""; state.active=0; render(); $("#q").focus();
+}
+$("#pop").addEventListener("mousedown",e=>e.preventDefault()); // keep focus in the search box
+$("#pop").addEventListener("click",e=>{
+  if(e.target.closest("[data-typed]")){ const q=state.q.trim(); addItem({b:"",c:"Not in list",m:q,d:"Typed by customer",id:"t"+Date.now()}); $("#q").value=""; state.q=""; render(); $("#q").focus(); return; }
+  const o=e.target.closest(".opt"); if(o) pickFromPop(+o.dataset.i);
+});
+$("#pop").addEventListener("mousemove",e=>{ const o=e.target.closest(".opt"); if(o&&+o.dataset.i!==state.active){ state.active=+o.dataset.i; document.querySelectorAll("#pop .opt").forEach((x,j)=>{x.classList.toggle("act",j===state.active);x.setAttribute("aria-selected",String(j===state.active));}); } });
 $("#results").addEventListener("click",e=>{
   const b=e.target.closest("button.add[data-id]"); if(!b) return;
   const d=DATA[+b.dataset.id]; addItem(d);
@@ -87,10 +131,16 @@ document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{
   fillCats(); render();
 });
 $("#cat").onchange=e=>{state.cat=e.target.value;state.limit=40;render();};
-$("#q").addEventListener("input",e=>{state.q=e.target.value;state.limit=40;render();});
+$("#q").addEventListener("input",e=>{state.q=e.target.value;state.limit=40;state.active=0;state.popOpen=true;render();});
+$("#q").addEventListener("focus",()=>{ if(state.q.trim()){ state.popOpen=true; render(); } });
+$("#q").addEventListener("blur",()=>{ setTimeout(()=>{ if(document.activeElement!==$("#q")){ state.popOpen=false; renderPop([], []); } },120); });
 $("#q").addEventListener("keydown",e=>{
-  if(e.key==="Enter"){ e.preventDefault(); const b=$("#results button.add[data-id]"); if(b&&state.q.trim()) b.click(); }
-  if(e.key==="Escape"){ e.target.value=""; state.q=""; render(); }
+  const n=(state.list||[]).length;
+  if(e.key==="ArrowDown"&&state.q.trim()){ e.preventDefault(); state.popOpen=true; state.active=n?(state.active+1)%n:0; render(); }
+  else if(e.key==="ArrowUp"&&state.q.trim()){ e.preventDefault(); state.active=n?(state.active-1+n)%n:0; render(); }
+  else if(e.key==="Enter"){ e.preventDefault(); if(!state.q.trim()) return;
+    if(n) pickFromPop(state.active); else { const t=$("#pop [data-typed]"); if(t) t.click(); } }
+  else if(e.key==="Escape"){ if(state.popOpen&&state.q.trim()){ state.popOpen=false; renderPop([],[]); } else { e.target.value=""; state.q=""; render(); } }
 });
 document.addEventListener("keydown",e=>{
   if(e.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); $("#q").focus(); }
@@ -128,7 +178,6 @@ function validate(show){
 function update(){
   const msg=buildMessage(), enc=encodeURIComponent(msg);
   $("#preview").textContent=msg;
-  $("#waDirect").href=`https://wa.me/${CONFIG.phone}?text=${enc}`;
   if(CONFIG.groupLink){
     $("#waGroup").href=CONFIG.groupLink;
     $("#waGroupSub").textContent="Copies your details, then opens the group";
@@ -138,7 +187,6 @@ function update(){
     $("#waGroupSub").textContent="Pick the group, then tap send";
     $("#sendNote").textContent="";
   }
-  $("#waDirectSub").textContent="To +"+CONFIG.phone.replace(/^91(\d{5})(\d{5})$/,"91 $1 $2")+" · just tap send";
   saveDraft();
 }
 async function copyText(t){
@@ -155,7 +203,7 @@ function payload(channel){
 function showDone(num){
   state.sent={num:num||null,at:Date.now()}; saveDraft();
   const el=$("#done"); el.hidden=false;
-  el.innerHTML=`<b>Enquiry received${num?` · Ref E-${num}`:""}</b><span>Our team has your details and will call you back. You can still send it on WhatsApp, or start a new enquiry.</span>`;
+  el.innerHTML=`<b>Enquiry received${num?` · Ref E-${num}`:""}</b><span>Our team has your details and will call you back. If you haven't posted it in the group yet, tap the button again, or start a new enquiry.</span>`;
 }
 function save(channel){
   // keepalive lets the request finish even while the page hands over to WhatsApp
@@ -170,16 +218,6 @@ $("#waGroup").addEventListener("click",e=>{
   if(CONFIG.groupLink){ copyText(buildMessage()).then(ok=>toast(ok?"Details copied. Paste them in the group and send.":"Couldn't copy automatically. Use “Copy message” below, then paste in the group.")); }
   else toast("WhatsApp opened. Choose the group and tap send.");
 });
-$("#waDirect").addEventListener("click",e=>{
-  if(!validate(true)){ e.preventDefault(); return; }
-  save("direct");
-  toast("WhatsApp opened with your message. Tap send to finish.");
-});
-$("#saveOnly").onclick=()=>{
-  if(!validate(true)) return;
-  const b=$("#saveOnly"); b.disabled=true; b.textContent="Sending…";
-  save("form").finally(()=>{ b.disabled=false; b.textContent="Send enquiry without WhatsApp"; });
-};
 $("#copyBtn").onclick=()=>copyText(buildMessage()).then(ok=>toast(ok?"Message copied.":"Couldn't copy. Open the preview and copy the text from there."));
 let clearArmed=false;
 $("#clearBtn").onclick=()=>{
