@@ -78,7 +78,6 @@ async function saveEnquiry(req, env) {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) return bad('Missing enquiry id.');
   if (!name) return bad('Name is required.');
   if (digits.length < 10 || digits.length > 15) return bad('Phone number should be 10 to 15 digits.');
-  if (!items.length && !comment) return bad('Add a product or a comment.');
 
   const db = env.DB;
   const t = now();

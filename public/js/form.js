@@ -105,7 +105,7 @@ function addItem(d){
 function renderPicked(){
   const box=$("#picked");
   $("#pickedTitle").textContent = state.picked.length?`Your list · ${state.picked.length} model${state.picked.length>1?"s":""}`:"Your list";
-  if(!state.picked.length){ box.innerHTML='<div class="none">Nothing added yet. Search above and tap <b>+ Add</b> on each model you want.</div>'; return; }
+  if(!state.picked.length){ box.innerHTML='<div class="none">No models added (optional).</div>'; return; }
   box.innerHTML='<div style="display:grid;gap:8px">'+state.picked.map((p,i)=>`<div class="pick">
     <div style="min-width:0"><div class="code">${esc(p.m)}</div><div class="meta">${p.b?esc(p.b)+" · ":""}${esc(p.c)}${p.d?" · "+esc(p.d):""}</div></div>
     <div class="qty"><button type="button" data-q="-1" data-i="${i}" aria-label="Fewer">−</button><input id="qty${i}" data-i="${i}" inputmode="numeric" value="${p.qty}" aria-label="Quantity of ${esc(p.m)}"><button type="button" data-q="1" data-i="${i}" aria-label="More">+</button></div>
@@ -165,7 +165,6 @@ function validate(show){
   if(!name) errs.name="Enter your name.";
   if(!d) errs.phone="Enter your phone number.";
   else if(d.length<10||d.length>15) errs.phone="Phone number should be 10 to 15 digits.";
-  if(!state.picked.length&&!$("#comment").value.trim()) errs.pick="Add at least one product, or write what you need in Comments.";
   if(show){
     $("#nameMsg").textContent=errs.name||""; $("#nameWrap").classList.toggle("bad",!!errs.name);
     $("#phoneMsg").textContent=errs.phone||""; $("#phoneWrap").classList.toggle("bad",!!errs.phone);
@@ -203,7 +202,7 @@ function payload(channel){
 function showDone(num){
   state.sent={num:num||null,at:Date.now()}; saveDraft();
   const el=$("#done"); el.hidden=false;
-  el.innerHTML=`<b>Enquiry received${num?` · Ref E-${num}`:""}</b><span>Our team has your details and will call you back. If you haven't posted it in the group yet, tap the button again, or start a new enquiry.</span>`;
+  el.innerHTML=`<b>Enquiry received${num?` · Ref E-${num}`:""}</b><span>Saved to the team's enquiry list. If it isn't posted in the group yet, tap the button again, or start a new enquiry.</span>`;
 }
 function save(channel){
   // keepalive lets the request finish even while the page hands over to WhatsApp

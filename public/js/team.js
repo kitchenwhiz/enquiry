@@ -115,7 +115,7 @@ function card(e) {
   const open = state.open.has(e.id);
   const t = today();
   const cls = OPEN(e) && e.due_date ? (e.due_date < t ? " overdue" : e.due_date === t ? " today" : "") : "";
-  const models = e.items.length ? e.items.map((i) => i.m + (i.qty > 1 ? " ×" + i.qty : "")).join(", ") : e.comment;
+  const models = e.items.length ? e.items.map((i) => i.m + (i.qty > 1 ? " ×" + i.qty : "")).join(", ") : (e.comment || "No products or comment — call to ask");
   const wa = waNumber(e.phone);
   const first = e.name.split(" ")[0];
   const msg = `Hi ${first}, this is ${me() || "the team"} from Kitchen Whiz about your enquiry` +
