@@ -220,11 +220,11 @@ $("#waGroup").addEventListener("click",e=>{
 $("#copyBtn").onclick=()=>copyText(buildMessage()).then(ok=>toast(ok?"Message copied.":"Couldn't copy. Open the preview and copy the text from there."));
 let clearArmed=false;
 $("#clearBtn").onclick=()=>{
-  if(!clearArmed){ clearArmed=true; $("#clearBtn").textContent="Tap again to clear everything"; setTimeout(()=>{clearArmed=false;$("#clearBtn").textContent="Start a new enquiry";},4000); return; }
+  if(!clearArmed){ clearArmed=true; $("#clearBtn").textContent="Tap again to clear"; setTimeout(()=>{clearArmed=false;$("#clearBtn").textContent="Start a new enquiry";},4000); return; }
   clearArmed=false; $("#clearBtn").textContent="Start a new enquiry";
   ["#name","#phone","#comment","#q"].forEach(s=>$(s).value=""); state.picked=[]; state.q=""; state.id=newId(); state.sent=null; $("#done").hidden=true;
   ["#nameMsg","#phoneMsg","#pickMsg"].forEach(s=>$(s).textContent=""); $("#nameWrap").classList.remove("bad"); $("#phoneWrap").classList.remove("bad");
-  renderPicked(); render(); update(); toast("Form cleared.");
+  renderPicked(); render(); update(); toast("Form cleared."); window.scrollTo({top:0,behavior:"smooth"}); $("#name").focus({preventScroll:true});
 };
 ["#name","#phone","#comment"].forEach(s=>$(s).addEventListener("input",()=>{
   if(s!=="#comment"){ const w=s==="#name"?"#nameWrap":"#phoneWrap"; $(w).classList.remove("bad"); $(s+"Msg").textContent=""; }
