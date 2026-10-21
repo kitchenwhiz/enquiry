@@ -3,25 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Kitchen Whiz Enquiries</title>
-<meta name="robots" content="noindex,nofollow">
-<link rel="stylesheet" href="/css/base.css?v=1">
+<title>Kitchen Whiz · Coming soon</title>
+<meta name="description" content="Kitchen Whiz: commercial kitchen, bar and refrigeration equipment. Coming soon.">
+<meta property="og:title" content="Kitchen Whiz · Coming soon">
+<meta property="og:description" content="Commercial kitchen, bar and refrigeration equipment. Something new is on its way.">
+<meta name="theme-color" content="#0E1A22">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
-.brands{display:grid;gap:10px}
-.brand{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
-.brand b{font-size:16px}
-.brand small{display:block;color:var(--muted);font-family:var(--f-mono);font-size:12.5px}
-.brand a{font-weight:600;text-decoration:none;color:var(--accent);white-space:nowrap}
-@media (max-width:480px){.brand{grid-template-columns:1fr 1fr}.brand>div{grid-column:1/-1}}
+/* Single centered card on a brushed-steel dark ground; the wordmark carries the page. Dark by design. */
+:root{
+  --bg:#0E1A22; --bg-2:#15252F; --ink:#EEF3F6; --muted:#9DB0BD; --line:#2A3E4B; --accent:#5EC2DF;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;color:var(--ink);font-family:var(--f-body);line-height:1.5;
+  background:var(--bg) linear-gradient(160deg,var(--bg-2) 0%,var(--bg) 55%);
+  display:grid;place-items:center;padding:32px 20px calc(32px + env(safe-area-inset-bottom,0px))}
+main{width:100%;max-width:560px;display:grid;gap:22px;text-align:left}
+.mark{font-family:var(--f-display);font-weight:700;font-size:clamp(52px,14vw,96px);line-height:.9;letter-spacing:.02em;text-transform:uppercase;margin:0}
+.mark span{color:var(--accent)}
+.rule{height:3px;width:72px;background:var(--accent);border-radius:2px}
+.soon{font-family:var(--f-display);font-weight:500;font-size:clamp(24px,6vw,32px);letter-spacing:.14em;text-transform:uppercase;margin:0;color:var(--ink)}
+p{margin:0;color:var(--muted);font-size:16px;max-width:44ch}
+.contact{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.contact a{color:var(--ink);text-decoration:none;font-weight:500;font-size:15px;border:1px solid var(--line);border-radius:999px;padding:9px 16px;background:rgba(255,255,255,.03)}
+.contact a:hover,.contact a:focus-visible{border-color:var(--accent);outline:none}
+footer{color:var(--muted);font-size:12.5px;letter-spacing:.04em}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header><h1>Kitchen Whiz Enquiries</h1><p class="note"><a href="/team/">Team list: all enquiries, every brand →</a></p></header>
-  <div class="brands">
-    <!-- one row per partner: folder public/<brand>/, a line in src/brands.js and public/js/brands.js -->
-    <div class="brand"><div><b>Hoshizaki &amp; Western</b><small>enquiry.kitchenwhiz.in/hw</small></div><a href="/hw/">Enquiry form</a></div>
+<main>
+  <h1 class="mark">Kitchen<br><span>Whiz</span></h1>
+  <div class="rule" aria-hidden="true"></div>
+  <p class="soon">Coming soon</p>
+  <p>Commercial kitchen, bar and refrigeration equipment from Kitchen Whiz and our partner brands, in one place. Something new is on its way.</p>
+  <div class="contact">
+    <a href="tel:+919902014700">Call 99020 14700</a>
+    <a href="mailto:info@kitchenwhiz.in">info@kitchenwhiz.in</a>
   </div>
-</div>
+  <footer>kitchenwhiz.in</footer>
+</main>
 </body>
 </html>

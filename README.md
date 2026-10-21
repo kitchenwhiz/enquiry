@@ -4,7 +4,8 @@ One enquiry form and one team list per partner brand, on one Cloudflare Worker w
 
 | Address | What |
 |---|---|
-| `enquiry.kitchenwhiz.in/` | List of partner brands (links to each form and team list) |
+| `enquiry.kitchenwhiz.in/` | Public "Coming soon" page (to become the Instagram landing page) |
+| `enquiry.kitchenwhiz.in/forms` | Internal list of partner forms |
 | `enquiry.kitchenwhiz.in/hw` | Hoshizaki & Western enquiry form: name, phone, model search (no prices), comments; floating Start a new enquiry + Send to WhatsApp group |
 | `enquiry.kitchenwhiz.in/team` | ONE team list for every brand (brand filter when there are several): dealer prices, call / WhatsApp, comments, follow-up dates, status, edit products, WhatsApp confirmation status |
 
@@ -21,7 +22,7 @@ Enquiry numbers run per brand: HW-1001, HW-1002… `/hw/team` goes to `/team`.
 ## Adding a partner brand (e.g. `tf`)
 1. Copy `public/hw/` to `public/tf/`; change `window.BRAND`, titles and the WhatsApp group link in `config.js`.
 2. Make `public/tf/products.js` and `src/brands/tf-prices.js` from that partner's price list (a generator like `tools/hw/gen.py`).
-3. Add `tf` to `src/brands.js` and `public/js/brands.js`, add `<script src="/tf/products.js">` to `public/team/index.html`, and a row to `public/index.html`. Push.
+3. Add `tf` to `src/brands.js` and `public/js/brands.js`, add `<script src="/tf/products.js">` to `public/team/index.html`, and a row to `public/forms/index.html`. Push.
 
 ## API
 - `POST /api/<brand>/enquiries` — saves or updates an enquiry (same id = same enquiry, so tapping both buttons doesn't duplicate). Numbers run per brand (HW-1001…).
