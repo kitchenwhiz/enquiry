@@ -59,7 +59,8 @@ async function confirmAndRecord(env, id, author) {
   const db = env.DB;
   const r = await db.prepare('SELECT * FROM enquiries WHERE id = ?').bind(id).first();
   if (!r) return { ok: false, error: 'Enquiry not found.' };
-  const e = { ...withRef(r), brandName: BRANDS[r.brand] ? BRANDS[r.brand].name : r.brand };
+  const B = BRANDS[r.brand] || {};
+  const e = { ...withRef(r), brandName: B.name || r.brand, brandContact: B.contact || '' };
   const res = await sendConfirmation(env, e);
   const t = now();
   await db.batch([
