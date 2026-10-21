@@ -6,7 +6,7 @@ export const BRANDS = {
   hw: {
     name: 'Hoshizaki & Western',
     ref: 'HW', // enquiry numbers HW-1001, HW-1002…
-    contact: '99020 14700 / 99020 14702', // numbers given in the WhatsApp confirmation
+    contact: '63663 08952 / 99020 14700', // numbers given in the WhatsApp confirmation
     prices: HW_PRICES,
     priceNote: 'Dealer price (DP), GST extra',
     wef: '2026-04-01',
