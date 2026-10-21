@@ -184,7 +184,7 @@ function update(){
     $("#sendNote").textContent="Group: your details are copied when you tap it. In the group, press and hold the message box, paste, and send.";
   } else {
     $("#waGroup").href=`https://wa.me/?text=${enc}`;
-    $("#waGroupSub").textContent="Pick the group, then tap send";
+    $("#waGroupSub").textContent="Opens WhatsApp with the details ready";
     $("#sendNote").textContent="";
   }
   saveDraft();
@@ -216,7 +216,7 @@ $("#waGroup").addEventListener("click",e=>{
   if(!validate(true)){ e.preventDefault(); return; }
   save("group");
   if(CONFIG.groupLink){ copyText(buildMessage()).then(ok=>toast(ok?"Details copied. Paste them in the group and send.":"Couldn't copy automatically. Use “Copy message” below, then paste in the group.")); }
-  else toast("WhatsApp opened. Choose the group and tap send.");
+  else toast("Saved. WhatsApp opened with the details ready.");
 });
 $("#copyBtn").onclick=()=>copyText(buildMessage()).then(ok=>toast(ok?"Message copied.":"Couldn't copy. Open the preview and copy the text from there."));
 let clearArmed=false;
