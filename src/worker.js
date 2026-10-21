@@ -1,14 +1,13 @@
-// Kitchen Whiz enquiries — Cloudflare Worker
-// Public:  GET /            customer enquiry form (public/index.html)
-//          POST /api/enquiries   save an enquiry (called when the customer taps a WhatsApp button)
-// Team:    GET /team         team enquiries page (public/team/index.html)
-//          GET  /api/team/enquiries            list with notes
-//          POST /api/team/enquiries/:id/notes  add a comment / set follow-up date / status
-//          PUT  /api/team/enquiries/:id/items  replace the products (logged in team updates)
-//          POST /api/team/enquiries/:id/confirm send (or resend) the WhatsApp confirmation
-//          GET  /api/team/prices               dealer prices
-// Everything under /team and /api/team can later be put behind Cloudflare Access (see README).
-import PRICES from './prices.js';
+// Kitchen Whiz enquiries — Cloudflare Worker, enquiry.kitchenwhiz.in
+// One form and one team list per partner brand (src/brands.js), e.g. /hw and /hw/team.
+// Form:  POST /api/:brand/enquiries                    save an enquiry
+// Team:  GET  /api/:brand/team/enquiries               list with notes
+//        POST /api/:brand/team/enquiries/:id/notes     comment / follow-up date / status
+//        PUT  /api/:brand/team/enquiries/:id/items     replace the products (logged)
+//        POST /api/:brand/team/enquiries/:id/confirm   send (or resend) the WhatsApp confirmation
+//        GET  /api/:brand/team/prices                  dealer prices
+// /api/enquiries (no brand) still works for pages opened before the move; it means "hw".
+import { BRANDS } from './brands.js';
 import { confirmEnabled, sendConfirmation } from './confirm.js';
 
 const STATUSES = ['new', 'contacted', 'quoted', 'won', 'lost'];
@@ -44,20 +43,23 @@ async function init(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_enquiries_created ON enquiries(created_at)'),
   ]);
   // columns added after launch (WhatsApp confirmation); "duplicate column" means already there
-  for (const col of ['confirm_status TEXT', 'confirm_at TEXT', 'confirm_msg_id TEXT', 'confirm_error TEXT']) {
+  for (const col of ["brand TEXT NOT NULL DEFAULT 'hw'", 'confirm_status TEXT', 'confirm_at TEXT', 'confirm_msg_id TEXT', 'confirm_error TEXT']) {
     try { await db.prepare(`ALTER TABLE enquiries ADD COLUMN ${col}`).run(); } catch (e) {
       if (!/duplicate column/i.test(String(e && e.message))) throw e;
     }
   }
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_enquiries_brand ON enquiries(brand, num)').run();
   ready = true;
 }
+const refOf = (r) => (BRANDS[r.brand] ? BRANDS[r.brand].ref : String(r.brand || '').toUpperCase()) + '-' + r.num;
+const withRef = (r) => ({ ...r, ref: refOf(r), items: JSON.parse(r.items || '[]') });
 
 // Sends the WhatsApp confirmation and records the result on the enquiry (+ a line in team updates).
 async function confirmAndRecord(env, id, author) {
   const db = env.DB;
   const r = await db.prepare('SELECT * FROM enquiries WHERE id = ?').bind(id).first();
   if (!r) return { ok: false, error: 'Enquiry not found.' };
-  const e = { ...r, items: JSON.parse(r.items || '[]') };
+  const e = { ...withRef(r), brandName: BRANDS[r.brand] ? BRANDS[r.brand].name : r.brand };
   const res = await sendConfirmation(env, e);
   const t = now();
   await db.batch([
@@ -90,7 +92,7 @@ function cleanItems(raw) {
   })).filter((i) => i.m);
 }
 
-async function saveEnquiry(req, env, ctx) {
+async function saveEnquiry(req, env, ctx, brand) {
   let body;
   try { body = await req.json(); } catch { return bad('Send the enquiry as JSON.'); }
   if (str(body.website, 200)) return json({ ok: true }); // honeypot: bots fill hidden fields
@@ -107,33 +109,34 @@ async function saveEnquiry(req, env, ctx) {
 
   const db = env.DB;
   const t = now();
-  const existing = await db.prepare('SELECT id, num, channel FROM enquiries WHERE id = ?').bind(id).first();
+  const existing = await db.prepare('SELECT id, num, channel, brand FROM enquiries WHERE id = ?').bind(id).first();
+  if (existing && existing.brand !== brand) return bad('This enquiry belongs to another brand.');
   if (existing) {
     // Same enquiry sent again (e.g. both WhatsApp buttons): update it, keep the number.
     const ch = [...new Set([...existing.channel.split(',').filter(Boolean), channel].filter(Boolean))].join(',');
     await db.prepare('UPDATE enquiries SET name=?, phone=?, items=?, comment=?, channel=?, updated_at=? WHERE id=?')
       .bind(name, phone, JSON.stringify(items), comment, ch, t, id).run();
-    return json({ ok: true, id, num: existing.num, updated: true });
+    return json({ ok: true, id, num: existing.num, ref: refOf(existing), updated: true });
   }
-  const row = await db.prepare('SELECT COALESCE(MAX(num), 1000) + 1 AS n FROM enquiries').first();
-  await db.prepare(`INSERT INTO enquiries (id, num, created_at, updated_at, name, phone, items, comment, channel, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, row.n, t, t, name, phone, JSON.stringify(items), comment, channel, str(body.source, 20) || 'form').run();
+  const row = await db.prepare('SELECT COALESCE(MAX(num), 1000) + 1 AS n FROM enquiries WHERE brand = ?').bind(brand).first();
+  await db.prepare(`INSERT INTO enquiries (id, brand, num, created_at, updated_at, name, phone, items, comment, channel, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, brand, row.n, t, t, name, phone, JSON.stringify(items), comment, channel, str(body.source, 20) || 'form').run();
   // confirmation goes out once, for new enquiries only, after the reply (doesn't slow the form)
   if (confirmEnabled(env)) ctx.waitUntil(confirmAndRecord(env, id, 'Automatic').catch(() => {}));
-  return json({ ok: true, id, num: row.n, confirm: confirmEnabled(env) });
+  return json({ ok: true, id, num: row.n, ref: refOf({ brand, num: row.n }), confirm: confirmEnabled(env) });
 }
 
-async function listEnquiries(env) {
+async function listEnquiries(env, brand) {
   const db = env.DB;
   const [{ results: rows }, { results: notes }] = await Promise.all([
-    db.prepare('SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 2000').all(),
-    db.prepare('SELECT * FROM notes ORDER BY created_at ASC').all(),
+    db.prepare('SELECT * FROM enquiries WHERE brand = ? ORDER BY created_at DESC LIMIT 2000').bind(brand).all(),
+    db.prepare('SELECT n.* FROM notes n JOIN enquiries e ON e.id = n.enquiry_id WHERE e.brand = ? ORDER BY n.created_at ASC').bind(brand).all(),
   ]);
   const byId = {};
   for (const n of notes) (byId[n.enquiry_id] ||= []).push(n);
   return json({
-    enquiries: rows.map((r) => ({ ...r, items: JSON.parse(r.items || '[]'), notes: byId[r.id] || [] })),
+    enquiries: rows.map((r) => ({ ...withRef(r), notes: byId[r.id] || [] })),
     statuses: STATUSES,
     confirmEnabled: confirmEnabled(env),
   });
@@ -204,22 +207,30 @@ export default {
     if (!p.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
       await init(env.DB);
-      if (p === '/api/enquiries' && req.method === 'POST') return await saveEnquiry(req, env, ctx);
-      if (p === '/api/team/enquiries' && req.method === 'GET') return await listEnquiries(env);
-      const m = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/notes$/);
-      if (m && req.method === 'POST') return await addNote(req, env, m[1]);
-      const mi = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/items$/);
-      if (mi && req.method === 'PUT') return await saveItems(req, env, mi[1]);
-      const mc = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/confirm$/);
-      if (mc && req.method === 'POST') {
-        if (!confirmEnabled(env)) return bad('Automatic WhatsApp confirmation is not set up yet.');
-        let b = {}; try { b = await req.json(); } catch {}
-        const author = str(b.author, 80);
-        if (!author) return bad('Enter your name so the team knows who sent it.');
-        const res = await confirmAndRecord(env, mc[1], author);
-        return res.ok ? json({ ok: true }) : bad(res.error, 502);
+      // /api/enquiries without a brand: pages opened before the move to /hw
+      const legacy = p === '/api/enquiries' ? ['hw', ''] : null;
+      const m0 = legacy ? [null, ...legacy] : p.match(/^\/api\/([a-z0-9-]{1,30})(\/.*)?$/);
+      if (!m0 || !BRANDS[m0[1]]) return bad('Unknown brand.', 404);
+      const brand = m0[1], rest = legacy ? '/enquiries' : (m0[2] || '');
+      const B = BRANDS[brand];
+      if (rest === '/enquiries' && req.method === 'POST') return await saveEnquiry(req, env, ctx, brand);
+      if (rest === '/team/enquiries' && req.method === 'GET') return await listEnquiries(env, brand);
+      if (rest === '/team/prices' && req.method === 'GET') return json({ prices: B.prices, wef: B.wef, note: B.priceNote });
+      const m = rest.match(/^\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/(notes|items|confirm)$/);
+      if (m) {
+        const own = await env.DB.prepare('SELECT brand FROM enquiries WHERE id = ?').bind(m[1]).first();
+        if (!own || own.brand !== brand) return bad('Enquiry not found.', 404);
+        if (m[2] === 'notes' && req.method === 'POST') return await addNote(req, env, m[1]);
+        if (m[2] === 'items' && req.method === 'PUT') return await saveItems(req, env, m[1]);
+        if (m[2] === 'confirm' && req.method === 'POST') {
+          if (!confirmEnabled(env)) return bad('Automatic WhatsApp confirmation is not set up yet.');
+          let b = {}; try { b = await req.json(); } catch {}
+          const author = str(b.author, 80);
+          if (!author) return bad('Enter your name so the team knows who sent it.');
+          const res = await confirmAndRecord(env, m[1], author);
+          return res.ok ? json({ ok: true }) : bad(res.error, 502);
+        }
       }
-      if (p === '/api/team/prices' && req.method === 'GET') return json({ prices: PRICES, wef: '2026-04-01', note: 'Dealer price (DP), GST extra' });
       return bad('Not found.', 404);
     } catch (e) {
       return bad('Server error: ' + (e && e.message ? e.message : String(e)), 500);

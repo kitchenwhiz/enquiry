@@ -1,5 +1,7 @@
 // Team enquiries page: list, prices, call / WhatsApp, comments, follow-up date, status.
 const $ = (s, el = document) => el.querySelector(s);
+const BRAND = window.BRAND; // set by the brand's team page, e.g. "hw"
+const API = `/api/${BRAND}/team`;
 const STATUS_LABEL = { new: "New", contacted: "Contacted", quoted: "Quoted", won: "Won", lost: "Lost" };
 const OPEN = (e) => e.status !== "won" && e.status !== "lost";
 const TABS = [
@@ -41,8 +43,8 @@ async function load(quiet) {
   if (!quiet) $("#statusLine").textContent = "Loading…";
   try {
     const [r1, r2] = await Promise.all([
-      fetch("/api/team/enquiries", { cache: "no-store" }),
-      Object.keys(state.prices).length ? null : fetch("/api/team/prices"),
+      fetch(`${API}/enquiries`, { cache: "no-store" }),
+      Object.keys(state.prices).length ? null : fetch(`${API}/prices`),
     ]);
     if (!r1.ok) throw new Error((await r1.json().catch(() => ({}))).error || r1.statusText);
     { const data = await r1.json(); state.all = data.enquiries; state.confirmEnabled = !!data.confirmEnabled; }
@@ -64,7 +66,7 @@ function cmp(a, b) { const x = sortKey(a), y = sortKey(b); for (let i = 0; i < 3
 
 function matches(e, q) {
   if (!q) return true;
-  const hay = [e.name, e.phone, e.phone.replace(/\D/g, ""), "e-" + e.num, e.comment, ...e.items.map((i) => i.m + " " + i.d + " " + i.c + " " + i.b), ...e.notes.map((n) => n.text + " " + n.author)].join(" ").toLowerCase();
+  const hay = [e.name, e.phone, e.phone.replace(/\D/g, ""), e.ref, e.comment, ...e.items.map((i) => i.m + " " + i.d + " " + i.c + " " + i.b), ...e.notes.map((n) => n.text + " " + n.author)].join(" ").toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
 }
 
@@ -178,7 +180,7 @@ function card(e) {
   return `<article class="enq${cls}" data-id="${e.id}">
     <div class="head" data-toggle="${e.id}" role="button" tabindex="0" aria-expanded="${open}">
       <div style="min-width:0">
-        <div class="who"><span class="nm">${esc(e.name)}</span><span class="ph">${esc(e.phone)}</span><span class="ref">E-${e.num}</span></div>
+        <div class="who"><span class="nm">${esc(e.name)}</span><span class="ph">${esc(e.phone)}</span><span class="ref">${esc(e.ref)}</span></div>
         <div class="sum">${esc(models)}</div>
       </div>
       <div class="badges">${dueChip(e)}<span class="pill s-${e.status}">${STATUS_LABEL[e.status] || e.status}</span><span class="age" title="${esc(fmtDate(e.created_at))}">${ago(e.created_at)}</span></div>
@@ -238,7 +240,7 @@ $("#list").addEventListener("click", (ev) => {
     const err = $("[data-eerr]", ped);
     if (!me()) { err.textContent = "Enter your name at the top (Updating as) first."; $("#me").focus(); return; }
     sv.disabled = true; sv.textContent = "Saving…";
-    fetch(`/api/team/enquiries/${id}/items`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ author: me(), items: ed.items }) })
+    fetch(`${API}/enquiries/${id}/items`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ author: me(), items: ed.items }) })
       .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || r.statusText); }))
       .then(() => { delete state.edit[id]; return load(true); })
       .catch((x) => { err.textContent = x.message; sv.disabled = false; sv.textContent = "Save products"; });
@@ -249,7 +251,7 @@ $("#list").addEventListener("click", async (ev) => {
   if (!me()) { $("#me").focus(); b.textContent = "Enter your name at the top first"; return; }
   b.disabled = true; b.textContent = "Sending…";
   try {
-    const r = await fetch(`/api/team/enquiries/${b.dataset.confirm}/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ author: me() }) });
+    const r = await fetch(`${API}/enquiries/${b.dataset.confirm}/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ author: me() }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok && !j.error) throw new Error(r.statusText);
   } catch (x) { /* the result is recorded on the enquiry either way */ }
@@ -280,7 +282,7 @@ $("#list").addEventListener("submit", async (ev) => {
   if (f.due.value !== (e.due_date || "")) body.due_date = f.due.value; // "" clears it
   btn.disabled = true; btn.textContent = "Saving…"; err.textContent = "";
   try {
-    const r = await fetch(`/api/team/enquiries/${id}/notes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(`${API}/enquiries/${id}/notes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || r.statusText);
     delete state.drafts[id];

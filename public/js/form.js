@@ -1,5 +1,6 @@
-// Customer enquiry form. Saves to /api/enquiries when a WhatsApp button (or Send enquiry) is tapped.
+// Enquiry form (shared by every brand). The brand page sets window.BRAND, e.g. "hw"; saves to /api/<brand>/enquiries.
 const CONFIG = window.ENQUIRY_CONFIG;
+const BRAND = window.BRAND;
 const DATA = window.HW_PRODUCTS;
 const $ = s => document.querySelector(s);
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/-/g,"");
@@ -156,7 +157,7 @@ function buildMessage(){
   else lines.push("—");
   lines.push("",`*Comments:* ${com||"—"}`);
   const dt=new Date().toLocaleString("en-IN",{day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"});
-  lines.push("",`_Sent from the enquiry form · ${dt}${state.sent&&state.sent.num?" · Ref E-"+state.sent.num:""}_`);
+  lines.push("",`_Sent from the enquiry form · ${dt}${state.sent&&state.sent.ref?" · Ref "+state.sent.ref:""}_`);
   return lines.join("\n");
 }
 function validate(show){
@@ -199,16 +200,16 @@ function payload(channel){
   return { id:state.id, name:$("#name").value.trim(), phone:$("#phone").value.trim(), comment:$("#comment").value.trim(),
     items:state.picked.map(p=>({b:p.b,c:p.c,m:p.m,d:p.d,qty:p.qty})), channel, website:$("#website").value };
 }
-function showDone(num){
-  state.sent={num:num||null,at:Date.now()}; saveDraft();
+function showDone(ref){
+  state.sent={ref:ref||null,at:Date.now()}; saveDraft();
   const el=$("#done"); el.hidden=false;
-  el.innerHTML=`<b>Enquiry received${num?` · Ref E-${num}`:""}</b><span>Saved to the team's enquiry list. If it isn't posted in the group yet, tap the button again, or start a new enquiry.</span>`;
+  el.innerHTML=`<b>Enquiry received${ref?` · Ref ${ref}`:""}</b><span>Saved to the team's enquiry list. If it isn't posted in the group yet, tap the button again, or start a new enquiry.</span>`;
 }
 function save(channel){
   // keepalive lets the request finish even while the page hands over to WhatsApp
-  return fetch("/api/enquiries",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload(channel)),keepalive:true})
+  return fetch(`/api/${BRAND}/enquiries`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload(channel)),keepalive:true})
     .then(r=>r.json().then(j=>({ok:r.ok,j})))
-    .then(({ok,j})=>{ if(ok) showDone(j.num); else toast(j.error||"Couldn't save the enquiry. Please try again."); return ok; })
+    .then(({ok,j})=>{ if(ok) showDone(j.ref); else toast(j.error||"Couldn't save the enquiry. Please try again."); return ok; })
     .catch(()=>{ toast("No connection: the enquiry wasn't saved here. Your WhatsApp message still reaches us."); return false; });
 }
 $("#waGroup").addEventListener("click",e=>{

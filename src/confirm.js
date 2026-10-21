@@ -28,12 +28,13 @@ function products(items) {
   return list.length > 6 ? `${shown} and ${list.length - 6} more` : shown;
 }
 
-// Names you can use in GUPSHUP_TEMPLATE_PARAMS, e.g. "name,ref,products"
+// Names you can use in GUPSHUP_TEMPLATE_PARAMS, e.g. "name,ref,products" (also: firstname, brand, count, phone, date)
 function value(key, e) {
   switch (key) {
     case 'name': return e.name;
     case 'firstname': return e.name.split(' ')[0];
-    case 'ref': return 'E-' + e.num;
+    case 'ref': return e.ref;
+    case 'brand': return e.brandName;
     case 'products': return products(e.items);
     case 'count': return String(e.items.length);
     case 'phone': return e.phone;
