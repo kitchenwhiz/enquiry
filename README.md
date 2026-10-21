@@ -5,7 +5,6 @@ One enquiry form and one team list per partner brand, on one Cloudflare Worker w
 | Address | What |
 |---|---|
 | `enquiry.kitchenwhiz.in/` | Public "Coming soon" page (to become the Instagram landing page) |
-| `enquiry.kitchenwhiz.in/forms` | Internal list of partner forms |
 | `enquiry.kitchenwhiz.in/hw` | Hoshizaki & Western enquiry form: name, phone, model search (no prices), comments; floating Start a new enquiry + Send to WhatsApp group |
 | `enquiry.kitchenwhiz.in/team` | ONE team list for every brand (brand filter when there are several): dealer prices, call / WhatsApp, comments, follow-up dates, status, edit products, WhatsApp confirmation status |
 
@@ -14,7 +13,7 @@ Enquiry numbers run per brand: HW-1001, HW-1002… `/hw/team` goes to `/team`.
 ## Files
 - `src/brands.js` — the partner brands (name, reference prefix, prices)
 - `public/<brand>/index.html`, `config.js`, `products.js` — each brand's form, WhatsApp group link and model list (no prices)
-- `public/team/index.html` — the shared team list; `public/js/brands.js` — brands shown on it
+- `public/team/index.html` — the shared team list. It gets the brand names from the server and loads a brand's model list only when editing one of its enquiries.
 - `public/js/form.js`, `public/js/team.js`, `public/css/base.css` — shared by every brand
 - `src/worker.js` — API; `src/confirm.js` — WhatsApp confirmation (Gupshup); `src/brands/hw-prices.js` — HW dealer prices (generated)
 - `tools/hw/gen.py` + the price list Excel — `npm run gen:hw` rebuilds `public/hw/products.js` and `src/brands/hw-prices.js`
@@ -22,7 +21,9 @@ Enquiry numbers run per brand: HW-1001, HW-1002… `/hw/team` goes to `/team`.
 ## Adding a partner brand (e.g. `tf`)
 1. Copy `public/hw/` to `public/tf/`; change `window.BRAND`, titles and the WhatsApp group link in `config.js`.
 2. Make `public/tf/products.js` and `src/brands/tf-prices.js` from that partner's price list (a generator like `tools/hw/gen.py`).
-3. Add `tf` to `src/brands.js` and `public/js/brands.js`, add `<script src="/tf/products.js">` to `public/team/index.html`, and a row to `public/forms/index.html`. Push.
+3. Add `tf` to `src/brands.js` (products.js must set `window.TF_PRODUCTS`). Push.
+
+**Privacy (owner, 21 Oct):** no page lists the partner brands. Each partner gets only its own form address; brand forms are `noindex`. Never add a public list of forms or partners.
 
 ## API
 - `POST /api/<brand>/enquiries` — saves or updates an enquiry (same id = same enquiry, so tapping both buttons doesn't duplicate). Numbers run per brand (HW-1001…).

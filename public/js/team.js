@@ -1,7 +1,7 @@
 // Team enquiries page: list, prices, call / WhatsApp, comments, follow-up date, status.
 const $ = (s, el = document) => el.querySelector(s);
 const API = "/api/team"; // one list for every brand
-const BRANDS = window.BRAND_LIST || [];
+let BRANDS = []; // filled from the server; no brand list is published in the page files
 const brandName = (slug) => (BRANDS.find((b) => b.slug === slug) || {}).name || slug;
 const brandShort = (slug) => (BRANDS.find((b) => b.slug === slug) || {}).short || String(slug).toUpperCase();
 const priceOf = (brand, m) => (state.prices[brand] || {})[m];
@@ -50,7 +50,8 @@ async function load(quiet) {
       Object.keys(state.prices).length ? null : fetch(`${API}/prices`),
     ]);
     if (!r1.ok) throw new Error((await r1.json().catch(() => ({}))).error || r1.statusText);
-    { const data = await r1.json(); state.all = data.enquiries; state.confirmEnabled = !!data.confirmEnabled; }
+    { const data = await r1.json(); state.all = data.enquiries; state.confirmEnabled = !!data.confirmEnabled;
+      BRANDS = Object.entries(data.brands || {}).map(([slug, b]) => ({ slug, name: b.name, short: b.ref })); }
     if (r2) state.prices = (await r2.json()).prices || {};
     state.loadedAt = new Date();
     render();
@@ -101,7 +102,18 @@ function dueChip(e) {
 const prep = (list) => (list || []).map((d) => ({ ...d,
   h: (d.m + " " + d.m.replace(/[\s\-\/]/g, "") + " " + d.d + " " + d.d.replace(/[\s\-\/]/g, "") + " " + d.c + " " + d.b).toLowerCase(),
   mc: d.m.toLowerCase().replace(/[\s\-\/]/g, ""), parts: d.m.toLowerCase().split("/").map((x) => x.replace(/[\s\-]/g, "")) }));
-const PRODUCTS_BY = Object.fromEntries(BRANDS.map((b) => [b.slug, prep(b.products())]));
+const PRODUCTS_BY = {};
+// a brand's model list loads only when someone edits one of its enquiries
+function loadProducts(slug) {
+  if (PRODUCTS_BY[slug]) return Promise.resolve();
+  return new Promise((res) => {
+    const sc = document.createElement("script");
+    sc.src = `/${slug}/products.js?v=2`;
+    sc.onload = () => { PRODUCTS_BY[slug] = prep(window[slug.toUpperCase() + "_PRODUCTS"]); res(); };
+    sc.onerror = () => { PRODUCTS_BY[slug] = []; res(); };
+    document.head.appendChild(sc);
+  });
+}
 function findProducts(q, brand) {
   const PRODUCTS = PRODUCTS_BY[brand] || [];
   const toks = q.toLowerCase().split(/\s+/).filter(Boolean); if (!toks.length) return [];
@@ -242,7 +254,7 @@ $("#list").addEventListener("click", (ev) => {
 });
 $("#list").addEventListener("click", (ev) => {
   const o = ev.target.closest("[data-eopen]");
-  if (o) { const e = state.all.find((x) => x.id === o.dataset.eopen); state.edit[e.id] = { items: e.items.map((i) => ({ ...i })), q: "", active: 0 }; render(); const inp = document.querySelector(`[data-es="${e.id}"]`); if (inp) inp.focus(); return; }
+  if (o) { const e = state.all.find((x) => x.id === o.dataset.eopen); loadProducts(e.brand); state.edit[e.id] = { items: e.items.map((i) => ({ ...i })), q: "", active: 0 }; render(); const inp = document.querySelector(`[data-es="${e.id}"]`); if (inp) inp.focus(); return; }
   const ped = ev.target.closest("[data-ped]"); if (!ped) return;
   const id = ped.dataset.ped, ed = state.edit[id];
   const rm = ev.target.closest("[data-er]"); if (rm) { ed.items.splice(+rm.dataset.er, 1); render(); return; }
