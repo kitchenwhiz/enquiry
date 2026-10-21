@@ -5,9 +5,11 @@
 //          GET  /api/team/enquiries            list with notes
 //          POST /api/team/enquiries/:id/notes  add a comment / set follow-up date / status
 //          PUT  /api/team/enquiries/:id/items  replace the products (logged in team updates)
+//          POST /api/team/enquiries/:id/confirm send (or resend) the WhatsApp confirmation
 //          GET  /api/team/prices               dealer prices
 // Everything under /team and /api/team can later be put behind Cloudflare Access (see README).
 import PRICES from './prices.js';
+import { confirmEnabled, sendConfirmation } from './confirm.js';
 
 const STATUSES = ['new', 'contacted', 'quoted', 'won', 'lost'];
 let ready = false;
@@ -41,7 +43,30 @@ async function init(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_notes_enquiry ON notes(enquiry_id)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_enquiries_created ON enquiries(created_at)'),
   ]);
+  // columns added after launch (WhatsApp confirmation); "duplicate column" means already there
+  for (const col of ['confirm_status TEXT', 'confirm_at TEXT', 'confirm_msg_id TEXT', 'confirm_error TEXT']) {
+    try { await db.prepare(`ALTER TABLE enquiries ADD COLUMN ${col}`).run(); } catch (e) {
+      if (!/duplicate column/i.test(String(e && e.message))) throw e;
+    }
+  }
   ready = true;
+}
+
+// Sends the WhatsApp confirmation and records the result on the enquiry (+ a line in team updates).
+async function confirmAndRecord(env, id, author) {
+  const db = env.DB;
+  const r = await db.prepare('SELECT * FROM enquiries WHERE id = ?').bind(id).first();
+  if (!r) return { ok: false, error: 'Enquiry not found.' };
+  const e = { ...r, items: JSON.parse(r.items || '[]') };
+  const res = await sendConfirmation(env, e);
+  const t = now();
+  await db.batch([
+    db.prepare('UPDATE enquiries SET confirm_status = ?, confirm_at = ?, confirm_msg_id = ?, confirm_error = ? WHERE id = ?')
+      .bind(res.ok ? 'sent' : 'failed', t, res.ok ? res.id : null, res.ok ? null : res.error, id),
+    db.prepare('INSERT INTO notes (enquiry_id, created_at, author, text, due_date, status) VALUES (?, ?, ?, ?, NULL, NULL)')
+      .bind(id, t, author || 'Automatic', res.ok ? 'WhatsApp confirmation sent to the customer' : 'WhatsApp confirmation failed: ' + res.error),
+  ]);
+  return res;
 }
 
 const json = (data, status = 200) =>
@@ -65,7 +90,7 @@ function cleanItems(raw) {
   })).filter((i) => i.m);
 }
 
-async function saveEnquiry(req, env) {
+async function saveEnquiry(req, env, ctx) {
   let body;
   try { body = await req.json(); } catch { return bad('Send the enquiry as JSON.'); }
   if (str(body.website, 200)) return json({ ok: true }); // honeypot: bots fill hidden fields
@@ -94,7 +119,9 @@ async function saveEnquiry(req, env) {
   await db.prepare(`INSERT INTO enquiries (id, num, created_at, updated_at, name, phone, items, comment, channel, source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, row.n, t, t, name, phone, JSON.stringify(items), comment, channel, str(body.source, 20) || 'form').run();
-  return json({ ok: true, id, num: row.n });
+  // confirmation goes out once, for new enquiries only, after the reply (doesn't slow the form)
+  if (confirmEnabled(env)) ctx.waitUntil(confirmAndRecord(env, id, 'Automatic').catch(() => {}));
+  return json({ ok: true, id, num: row.n, confirm: confirmEnabled(env) });
 }
 
 async function listEnquiries(env) {
@@ -108,6 +135,7 @@ async function listEnquiries(env) {
   return json({
     enquiries: rows.map((r) => ({ ...r, items: JSON.parse(r.items || '[]'), notes: byId[r.id] || [] })),
     statuses: STATUSES,
+    confirmEnabled: confirmEnabled(env),
   });
 }
 
@@ -170,18 +198,27 @@ async function saveItems(req, env, id) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const p = url.pathname.replace(/\/+$/, '') || '/';
     if (!p.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
       await init(env.DB);
-      if (p === '/api/enquiries' && req.method === 'POST') return await saveEnquiry(req, env);
+      if (p === '/api/enquiries' && req.method === 'POST') return await saveEnquiry(req, env, ctx);
       if (p === '/api/team/enquiries' && req.method === 'GET') return await listEnquiries(env);
       const m = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/notes$/);
       if (m && req.method === 'POST') return await addNote(req, env, m[1]);
       const mi = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/items$/);
       if (mi && req.method === 'PUT') return await saveItems(req, env, mi[1]);
+      const mc = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/confirm$/);
+      if (mc && req.method === 'POST') {
+        if (!confirmEnabled(env)) return bad('Automatic WhatsApp confirmation is not set up yet.');
+        let b = {}; try { b = await req.json(); } catch {}
+        const author = str(b.author, 80);
+        if (!author) return bad('Enter your name so the team knows who sent it.');
+        const res = await confirmAndRecord(env, mc[1], author);
+        return res.ok ? json({ ok: true }) : bad(res.error, 502);
+      }
       if (p === '/api/team/prices' && req.method === 'GET') return json({ prices: PRICES, wef: '2026-04-01', note: 'Dealer price (DP), GST extra' });
       return bad('Not found.', 404);
     } catch (e) {

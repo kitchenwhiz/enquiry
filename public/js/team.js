@@ -45,7 +45,7 @@ async function load(quiet) {
       Object.keys(state.prices).length ? null : fetch("/api/team/prices"),
     ]);
     if (!r1.ok) throw new Error((await r1.json().catch(() => ({}))).error || r1.statusText);
-    state.all = (await r1.json()).enquiries;
+    { const data = await r1.json(); state.all = data.enquiries; state.confirmEnabled = !!data.confirmEnabled; }
     if (r2) state.prices = (await r2.json()).prices || {};
     state.loadedAt = new Date();
     render();
@@ -127,6 +127,16 @@ function addToEditor(id, d) {
   const inp = document.querySelector(`[data-es="${id}"]`); if (inp) inp.focus();
 }
 
+function confirmLine(e) {
+  const st = e.confirm_status;
+  if (!state.confirmEnabled && !st) return "";
+  let txt, cls = "", btn = "";
+  if (st === "sent") { txt = "✓ WhatsApp confirmation sent " + fmtDate(e.confirm_at); cls = "ok"; btn = "Send again"; }
+  else if (st === "failed") { txt = "WhatsApp confirmation failed: " + (e.confirm_error || "unknown error"); cls = "bad"; btn = "Try again"; }
+  else { txt = "WhatsApp confirmation not sent"; btn = "Send confirmation"; }
+  return `<div class="conf ${cls}"><span>${esc(txt)}</span>${state.confirmEnabled ? `<button type="button" class="linkbtn" data-confirm="${e.id}">${btn}</button>` : ""}</div>`;
+}
+
 function itemsTable(e) {
   if (state.edit[e.id]) return editorHtml(e);
   if (!e.items.length) return `<div><div class="lbl">Products</div><div class="cmt" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span>No products given.</span><button type="button" class="act" data-eopen="${e.id}">+ Add products</button></div></div>`;
@@ -178,6 +188,7 @@ function card(e) {
         <a class="act call" href="tel:+${wa}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1Z"/></svg>Call ${esc(e.phone)}</a>
         <a class="act wa" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3a.5.5 0 0 0 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.1.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.3c0-.1-.2-.2-.4-.3Z"/></svg>WhatsApp</a>
       </div>
+      ${confirmLine(e)}
       ${itemsTable(e)}
       ${e.comment ? `<div><div class="lbl">Customer comment</div><div class="cmt">${esc(e.comment)}</div></div>` : ""}
       <div><div class="lbl">Team updates</div><div class="notes">${notesHtml(e)}</div></div>
@@ -232,6 +243,17 @@ $("#list").addEventListener("click", (ev) => {
       .then(() => { delete state.edit[id]; return load(true); })
       .catch((x) => { err.textContent = x.message; sv.disabled = false; sv.textContent = "Save products"; });
   }
+});
+$("#list").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-confirm]"); if (!b) return;
+  if (!me()) { $("#me").focus(); b.textContent = "Enter your name at the top first"; return; }
+  b.disabled = true; b.textContent = "Sending…";
+  try {
+    const r = await fetch(`/api/team/enquiries/${b.dataset.confirm}/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ author: me() }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) throw new Error(r.statusText);
+  } catch (x) { /* the result is recorded on the enquiry either way */ }
+  await load(true);
 });
 $("#list").addEventListener("input", (ev) => {
   const s1 = ev.target.closest("[data-es]"); if (s1) { const ed = state.edit[s1.dataset.es]; ed.q = s1.value; ed.active = 0; renderPop(s1.dataset.es); return; }

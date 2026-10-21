@@ -15,5 +15,15 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "enquiry-db" }
   ],
+  // Automatic WhatsApp confirmation (Gupshup). Fill these in; the API key is NOT here:
+  // add it in Cloudflare → Workers & Pages → enquiry → Settings → Variables and Secrets
+  // as a Secret named GUPSHUP_API_KEY. Until all four are set, no confirmation is sent.
+  "vars": {
+    "GUPSHUP_APP_NAME": "",
+    "GUPSHUP_SOURCE": "",
+    "GUPSHUP_TEMPLATE_ID": "",
+    // what fills {{1}}, {{2}}… in the template, in order: name, firstname, ref, products, count, phone, date
+    "GUPSHUP_TEMPLATE_PARAMS": "name,ref,products"
+  },
   "observability": { "enabled": true }
 }
