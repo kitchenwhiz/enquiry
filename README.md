@@ -43,7 +43,8 @@ Every new enquiry gets one WhatsApp confirmation to the customer's number, sent 
 - Secret `GUPSHUP_API_KEY`: Cloudflare → Workers & Pages → enquiry → Settings → Variables and Secrets → Add → type **Secret**. Never put it in the code.
 - Until all four are set, nothing is sent. Code: `src/confirm.js`.
 
-## Access (to do)
+## Access (to do, pending task)
+**Team list to be moved under email login** (owner, 21 Oct): only the team's @kitchenwhiz.in emails can open `/team`; the brand forms stay open.
 `/team/` and `/api/team/*` are open to anyone who has the link (decided 8 Oct 2026: no restrictions for now). They show customer phone numbers and dealer prices. To add the @kitchenwhiz.in login later: Cloudflare Zero Trust → Access → Applications → Add → Self-hosted, paths `enquiry.kitchenwhiz.in/team` and `/api/team`, policy "emails ending in @kitchenwhiz.in". The customer form (`/` and `POST /api/enquiries`) stays public.
 
 ## Local
