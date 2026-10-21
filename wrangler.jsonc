@@ -3,11 +3,8 @@
   "name": "enquiry",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-01",
-  // Address: Cloudflare creates the DNS record and certificate on deploy (kitchenwhiz.in is on Cloudflare).
-  // enquiry.kitchenwhiz.workers.dev keeps working too.
-  "routes": [
-    { "pattern": "enquiry.kitchenwhiz.in", "custom_domain": true }
-  ],
+  // Address enquiry.kitchenwhiz.in is attached in the Cloudflare dashboard
+  // (enquiry → Domains → Add Domain), not here, so builds never need domain permissions.
   "workers_dev": true,
   "assets": {
     "directory": "./public",
