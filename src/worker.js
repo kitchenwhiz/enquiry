@@ -1,11 +1,11 @@
 // Kitchen Whiz enquiries — Cloudflare Worker, enquiry.kitchenwhiz.in
-// One form and one team list per partner brand (src/brands.js), e.g. /hw and /hw/team.
-// Form:  POST /api/:brand/enquiries                    save an enquiry
-// Team:  GET  /api/:brand/team/enquiries               list with notes
-//        POST /api/:brand/team/enquiries/:id/notes     comment / follow-up date / status
-//        PUT  /api/:brand/team/enquiries/:id/items     replace the products (logged)
-//        POST /api/:brand/team/enquiries/:id/confirm   send (or resend) the WhatsApp confirmation
-//        GET  /api/:brand/team/prices                  dealer prices
+// One form per partner brand (src/brands.js), e.g. /hw; ONE team list for all brands at /team.
+// Form:  POST /api/:brand/enquiries              save an enquiry
+// Team:  GET  /api/team/enquiries                all brands, with notes (each has .brand)
+//        POST /api/team/enquiries/:id/notes      comment / follow-up date / status
+//        PUT  /api/team/enquiries/:id/items      replace the products (logged)
+//        POST /api/team/enquiries/:id/confirm    send (or resend) the WhatsApp confirmation
+//        GET  /api/team/prices                   dealer prices of every brand: { hw: {...}, ... }
 // /api/enquiries (no brand) still works for pages opened before the move; it means "hw".
 import { BRANDS } from './brands.js';
 import { confirmEnabled, sendConfirmation } from './confirm.js';
@@ -127,11 +127,11 @@ async function saveEnquiry(req, env, ctx, brand) {
   return json({ ok: true, id, num: row.n, ref: refOf({ brand, num: row.n }), confirm: confirmEnabled(env) });
 }
 
-async function listEnquiries(env, brand) {
+async function listEnquiries(env) {
   const db = env.DB;
   const [{ results: rows }, { results: notes }] = await Promise.all([
-    db.prepare('SELECT * FROM enquiries WHERE brand = ? ORDER BY created_at DESC LIMIT 2000').bind(brand).all(),
-    db.prepare('SELECT n.* FROM notes n JOIN enquiries e ON e.id = n.enquiry_id WHERE e.brand = ? ORDER BY n.created_at ASC').bind(brand).all(),
+    db.prepare('SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 3000').all(),
+    db.prepare('SELECT * FROM notes ORDER BY created_at ASC').all(),
   ]);
   const byId = {};
   for (const n of notes) (byId[n.enquiry_id] ||= []).push(n);
@@ -139,6 +139,7 @@ async function listEnquiries(env, brand) {
     enquiries: rows.map((r) => ({ ...withRef(r), notes: byId[r.id] || [] })),
     statuses: STATUSES,
     confirmEnabled: confirmEnabled(env),
+    brands: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, { name: b.name, ref: b.ref }])),
   });
 }
 
@@ -207,19 +208,14 @@ export default {
     if (!p.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
       await init(env.DB);
-      // /api/enquiries without a brand: pages opened before the move to /hw
-      const legacy = p === '/api/enquiries' ? ['hw', ''] : null;
-      const m0 = legacy ? [null, ...legacy] : p.match(/^\/api\/([a-z0-9-]{1,30})(\/.*)?$/);
-      if (!m0 || !BRANDS[m0[1]]) return bad('Unknown brand.', 404);
-      const brand = m0[1], rest = legacy ? '/enquiries' : (m0[2] || '');
-      const B = BRANDS[brand];
-      if (rest === '/enquiries' && req.method === 'POST') return await saveEnquiry(req, env, ctx, brand);
-      if (rest === '/team/enquiries' && req.method === 'GET') return await listEnquiries(env, brand);
-      if (rest === '/team/prices' && req.method === 'GET') return json({ prices: B.prices, wef: B.wef, note: B.priceNote });
-      const m = rest.match(/^\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/(notes|items|confirm)$/);
+      // ---- team list: all brands together ----
+      if (p === '/api/team/enquiries' && req.method === 'GET') return await listEnquiries(env);
+      if (p === '/api/team/prices' && req.method === 'GET') {
+        return json({ prices: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, b.prices])),
+          notes: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, `${b.priceNote}, wef ${b.wef}`])) });
+      }
+      const m = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/(notes|items|confirm)$/);
       if (m) {
-        const own = await env.DB.prepare('SELECT brand FROM enquiries WHERE id = ?').bind(m[1]).first();
-        if (!own || own.brand !== brand) return bad('Enquiry not found.', 404);
         if (m[2] === 'notes' && req.method === 'POST') return await addNote(req, env, m[1]);
         if (m[2] === 'items' && req.method === 'PUT') return await saveItems(req, env, m[1]);
         if (m[2] === 'confirm' && req.method === 'POST') {
@@ -230,6 +226,12 @@ export default {
           const res = await confirmAndRecord(env, m[1], author);
           return res.ok ? json({ ok: true }) : bad(res.error, 502);
         }
+      }
+      // ---- forms: one per brand. /api/enquiries (no brand) = pages opened before the move to /hw ----
+      const fm = p === '/api/enquiries' ? [null, 'hw'] : p.match(/^\/api\/([a-z0-9-]{1,30})\/enquiries$/);
+      if (fm && req.method === 'POST') {
+        if (!BRANDS[fm[1]]) return bad('Unknown brand.', 404);
+        return await saveEnquiry(req, env, ctx, fm[1]);
       }
       return bad('Not found.', 404);
     } catch (e) {

@@ -6,14 +6,14 @@ One enquiry form and one team list per partner brand, on one Cloudflare Worker w
 |---|---|
 | `enquiry.kitchenwhiz.in/` | List of partner brands (links to each form and team list) |
 | `enquiry.kitchenwhiz.in/hw` | Hoshizaki & Western enquiry form: name, phone, model search (no prices), comments; floating Start a new enquiry + Send to WhatsApp group |
-| `enquiry.kitchenwhiz.in/hw/team` | Hoshizaki & Western team list: dealer prices, call / WhatsApp, comments, follow-up dates, status, edit products, WhatsApp confirmation status |
+| `enquiry.kitchenwhiz.in/team` | ONE team list for every brand (brand filter when there are several): dealer prices, call / WhatsApp, comments, follow-up dates, status, edit products, WhatsApp confirmation status |
 
-Enquiry numbers run per brand: HW-1001, HW-1002… Old links (`/team`) go to `/hw/team`.
+Enquiry numbers run per brand: HW-1001, HW-1002… `/hw/team` goes to `/team`.
 
 ## Files
 - `src/brands.js` — the partner brands (name, reference prefix, prices)
 - `public/<brand>/index.html`, `config.js`, `products.js` — each brand's form, WhatsApp group link and model list (no prices)
-- `public/<brand>/team/index.html` — each brand's team list
+- `public/team/index.html` — the shared team list; `public/js/brands.js` — brands shown on it
 - `public/js/form.js`, `public/js/team.js`, `public/css/base.css` — shared by every brand
 - `src/worker.js` — API; `src/confirm.js` — WhatsApp confirmation (Gupshup); `src/brands/hw-prices.js` — HW dealer prices (generated)
 - `tools/hw/gen.py` + the price list Excel — `npm run gen:hw` rebuilds `public/hw/products.js` and `src/brands/hw-prices.js`
@@ -21,15 +21,14 @@ Enquiry numbers run per brand: HW-1001, HW-1002… Old links (`/team`) go to `/h
 ## Adding a partner brand (e.g. `tf`)
 1. Copy `public/hw/` to `public/tf/`; change `window.BRAND`, titles and the WhatsApp group link in `config.js`.
 2. Make `public/tf/products.js` and `src/brands/tf-prices.js` from that partner's price list (a generator like `tools/hw/gen.py`).
-3. Add `tf` to `src/brands.js` and a row to `public/index.html`. Push.
+3. Add `tf` to `src/brands.js` and `public/js/brands.js`, add `<script src="/tf/products.js">` to `public/team/index.html`, and a row to `public/index.html`. Push.
 
 ## API
-- All routes are per brand: `/api/<brand>/…`.
 - `POST /api/<brand>/enquiries` — saves or updates an enquiry (same id = same enquiry, so tapping both buttons doesn't duplicate). Numbers run per brand (HW-1001…).
-- `GET /api/<brand>/team/enquiries` — all enquiries with team notes
-- `POST /api/<brand>/team/enquiries/:id/notes` — `{author, text, due_date ("" clears), status}`
-- `PUT /api/<brand>/team/enquiries/:id/items` — `{author, items}` replaces the products; the change is logged in team updates
-- `GET /api/<brand>/team/prices` — dealer prices
+- `GET /api/team/enquiries` — all enquiries with team notes
+- `POST /api/team/enquiries/:id/notes` — `{author, text, due_date ("" clears), status}`
+- `PUT /api/team/enquiries/:id/items` — `{author, items}` replaces the products; the change is logged in team updates
+- `GET /api/team/prices` — dealer prices
 
 ## Address enquiry.kitchenwhiz.in (one time, owner)
 Needs kitchenwhiz.in on Cloudflare (see hosting plan). Then Cloudflare → Workers & Pages → enquiry → Settings → Domains & Routes → Add → Custom domain → `enquiry.kitchenwhiz.in`. Cloudflare creates the DNS record and certificate. The workers.dev address keeps working.
@@ -45,7 +44,7 @@ Every new enquiry gets one WhatsApp confirmation to the customer's number, sent 
 - Until all four are set, nothing is sent. Code: `src/confirm.js`.
 
 ## Access (to do)
-`/<brand>/team/` and `/api/<brand>/team/*` are open to anyone who has the link (decided 8 Oct 2026: no restrictions for now). They show customer phone numbers and dealer prices. To add the @kitchenwhiz.in login later: Cloudflare Zero Trust → Access → Applications → Add → Self-hosted, paths `enquiry.kitchenwhiz.in/*/team` and `/api/*/team`, policy "emails ending in @kitchenwhiz.in". The customer form (`/` and `POST /api/enquiries`) stays public.
+`/team/` and `/api/team/*` are open to anyone who has the link (decided 8 Oct 2026: no restrictions for now). They show customer phone numbers and dealer prices. To add the @kitchenwhiz.in login later: Cloudflare Zero Trust → Access → Applications → Add → Self-hosted, paths `enquiry.kitchenwhiz.in/team` and `/api/team`, policy "emails ending in @kitchenwhiz.in". The customer form (`/` and `POST /api/enquiries`) stays public.
 
 ## Local
 `npm install`, `npm run dev` → http://localhost:8787 and http://localhost:8787/team/

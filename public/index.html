@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/css/base.css?v=1">
 <style>
 .brands{display:grid;gap:10px}
-.brand{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.brand{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
 .brand b{font-size:16px}
 .brand small{display:block;color:var(--muted);font-family:var(--f-mono);font-size:12.5px}
 .brand a{font-weight:600;text-decoration:none;color:var(--accent);white-space:nowrap}
@@ -17,10 +17,10 @@
 </head>
 <body>
 <div class="wrap">
-  <header><h1>Kitchen Whiz Enquiries</h1></header>
+  <header><h1>Kitchen Whiz Enquiries</h1><p class="note"><a href="/team/">Team list: all enquiries, every brand →</a></p></header>
   <div class="brands">
-    <!-- one row per partner: add a folder public/<brand>/ and a line in src/brands.js -->
-    <div class="brand"><div><b>Hoshizaki &amp; Western</b><small>enquiry.kitchenwhiz.in/hw</small></div><a href="/hw/">Enquiry form</a><a href="/hw/team/">Team list</a></div>
+    <!-- one row per partner: folder public/<brand>/, a line in src/brands.js and public/js/brands.js -->
+    <div class="brand"><div><b>Hoshizaki &amp; Western</b><small>enquiry.kitchenwhiz.in/hw</small></div><a href="/hw/">Enquiry form</a></div>
   </div>
 </div>
 </body>

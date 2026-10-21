@@ -1,7 +1,10 @@
 // Team enquiries page: list, prices, call / WhatsApp, comments, follow-up date, status.
 const $ = (s, el = document) => el.querySelector(s);
-const BRAND = window.BRAND; // set by the brand's team page, e.g. "hw"
-const API = `/api/${BRAND}/team`;
+const API = "/api/team"; // one list for every brand
+const BRANDS = window.BRAND_LIST || [];
+const brandName = (slug) => (BRANDS.find((b) => b.slug === slug) || {}).name || slug;
+const brandShort = (slug) => (BRANDS.find((b) => b.slug === slug) || {}).short || String(slug).toUpperCase();
+const priceOf = (brand, m) => (state.prices[brand] || {})[m];
 const STATUS_LABEL = { new: "New", contacted: "Contacted", quoted: "Quoted", won: "Won", lost: "Lost" };
 const OPEN = (e) => e.status !== "won" && e.status !== "lost";
 const TABS = [
@@ -13,7 +16,7 @@ const TABS = [
   { k: "lost", label: "Lost", test: (e) => e.status === "lost" },
   { k: "all", label: "All", test: () => true },
 ];
-const state = { all: [], prices: {}, edit: {}, tab: "action", q: "", open: new Set(), drafts: {}, loadedAt: null, busy: false };
+const state = { all: [], prices: {}, edit: {}, brand: "", tab: "action", q: "", open: new Set(), drafts: {}, loadedAt: null, busy: false };
 
 function today(offset = 0) {
   const d = new Date(); d.setDate(d.getDate() + offset);
@@ -66,16 +69,24 @@ function cmp(a, b) { const x = sortKey(a), y = sortKey(b); for (let i = 0; i < 3
 
 function matches(e, q) {
   if (!q) return true;
-  const hay = [e.name, e.phone, e.phone.replace(/\D/g, ""), e.ref, e.comment, ...e.items.map((i) => i.m + " " + i.d + " " + i.c + " " + i.b), ...e.notes.map((n) => n.text + " " + n.author)].join(" ").toLowerCase();
+  const hay = [brandName(e.brand), e.name, e.phone, e.phone.replace(/\D/g, ""), e.ref, e.comment, ...e.items.map((i) => i.m + " " + i.d + " " + i.c + " " + i.b), ...e.notes.map((n) => n.text + " " + n.author)].join(" ").toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
 }
 
+const inBrand = (e) => !state.brand || e.brand === state.brand;
 function renderTabs() {
+  const seg = $("#brandSeg");
+  if (seg) {
+    seg.hidden = BRANDS.length < 2;
+    seg.innerHTML = [{ slug: "", name: "All brands" }, ...BRANDS].map((b) =>
+      `<button type="button" data-brand="${b.slug}" aria-pressed="${state.brand === b.slug}">${esc(b.slug ? b.short : b.name)}</button>`).join("");
+  }
   $("#tabs").innerHTML = TABS.map((t) => {
-    const n = state.all.filter(t.test).length;
+    const n = state.all.filter(inBrand).filter(t.test).length;
     return `<button type="button" class="tab${t.alert && n ? " alert" : ""}" data-tab="${t.k}" aria-pressed="${state.tab === t.k}">${t.label}<span class="n">${n}</span></button>`;
   }).join("");
 }
+$("#brandSeg")?.addEventListener("click", (e) => { const b = e.target.closest("[data-brand]"); if (!b) return; state.brand = b.dataset.brand; render(); });
 $("#tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (!b) return; state.tab = b.dataset.tab; render(); });
 $("#q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
 
@@ -87,10 +98,12 @@ function dueChip(e) {
 }
 
 /* ---------- product editor ---------- */
-const PRODUCTS = (window.HW_PRODUCTS || []).map((d) => ({ ...d,
+const prep = (list) => (list || []).map((d) => ({ ...d,
   h: (d.m + " " + d.m.replace(/[\s\-\/]/g, "") + " " + d.d + " " + d.d.replace(/[\s\-\/]/g, "") + " " + d.c + " " + d.b).toLowerCase(),
   mc: d.m.toLowerCase().replace(/[\s\-\/]/g, ""), parts: d.m.toLowerCase().split("/").map((x) => x.replace(/[\s\-]/g, "")) }));
-function findProducts(q) {
+const PRODUCTS_BY = Object.fromEntries(BRANDS.map((b) => [b.slug, prep(b.products())]));
+function findProducts(q, brand) {
+  const PRODUCTS = PRODUCTS_BY[brand] || [];
   const toks = q.toLowerCase().split(/\s+/).filter(Boolean); if (!toks.length) return [];
   const qc = q.toLowerCase().replace(/[\s\-\/]/g, "");
   const score = (d) => { const i = d.mc.indexOf(qc); return d.mc === qc ? 0 : i === 0 || d.parts.some((x) => x.startsWith(qc)) ? 1 : i > 0 ? 2 : 3; };
@@ -99,12 +112,12 @@ function findProducts(q) {
 function editorHtml(e) {
   const ed = state.edit[e.id];
   const rows = ed.items.length ? ed.items.map((i, n) => {
-    const p = state.prices[i.m];
+    const p = priceOf(e.brand, i.m);
     return `<div class="erow"><div style="min-width:0"><div class="code">${esc(i.m)}</div><div class="meta">${esc([i.b, i.c, i.d].filter(Boolean).join(" · "))}${p != null ? " · DP " + inr(p) : ""}</div></div>
       <input type="number" min="1" max="9999" value="${i.qty}" data-eq="${n}" aria-label="Quantity of ${esc(i.m)}">
       <button type="button" class="x" data-er="${n}" aria-label="Remove ${esc(i.m)}">×</button></div>`;
   }).join("") : `<div class="meta" style="padding:4px 0">No products yet. Add them below.</div>`;
-  return `<div class="ped" data-ped="${e.id}"><div class="lbl">Products · editing</div>
+  return `<div class="ped" data-ped="${e.id}"><div class="lbl">Products · editing · ${esc(brandName(e.brand))} list</div>
     <div class="erows">${rows}</div>
     <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input data-es="${e.id}" type="search" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="Add a model: type the model number, then Enter" aria-label="Add a model">
@@ -115,10 +128,11 @@ function editorHtml(e) {
 function renderPop(id) {
   const ed = state.edit[id], box = document.querySelector(`[data-ped="${id}"] [data-epop]`); if (!box) return;
   if (!ed.q.trim()) { box.hidden = true; return; }
-  ed.list = findProducts(ed.q); if (ed.active >= ed.list.length) ed.active = 0;
+  const e = state.all.find((x) => x.id === id);
+  ed.list = findProducts(ed.q, e && e.brand); if (ed.active >= ed.list.length) ed.active = 0;
   box.hidden = false;
   box.innerHTML = ed.list.length ? ed.list.map((d, n) => `<div class="opt${n === ed.active ? " act" : ""}" data-eo="${n}"><div style="min-width:0"><div class="code">${esc(d.m)}</div>
-      <div class="meta"><span class="tag">${d.b}</span><span>${esc(d.c)}</span>${d.d ? `<span>· ${esc(d.d)}</span>` : ""}</div></div><span class="side">${state.prices[d.m] != null ? inr(state.prices[d.m]) : ""}</span></div>`).join("")
+      <div class="meta"><span class="tag">${d.b}</span><span>${esc(d.c)}</span>${d.d ? `<span>· ${esc(d.d)}</span>` : ""}</div></div><span class="side">${priceOf(e && e.brand, d.m) != null ? inr(priceOf(e && e.brand, d.m)) : ""}</span></div>`).join("")
     : `<div class="opt" data-etyped><div><div class="code">${esc(ed.q.trim())}</div><div class="meta">Not in the price list · add as typed</div></div><span class="side">↵</span></div>`;
 }
 function addToEditor(id, d) {
@@ -144,7 +158,7 @@ function itemsTable(e) {
   if (!e.items.length) return `<div><div class="lbl">Products</div><div class="cmt" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span>No products given.</span><button type="button" class="act" data-eopen="${e.id}">+ Add products</button></div></div>`;
   let total = 0, missing = 0;
   const rows = e.items.map((i) => {
-    const p = state.prices[i.m];
+    const p = priceOf(e.brand, i.m);
     if (p == null) missing++; else total += p * i.qty;
     return `<tr><td><div class="code">${esc(i.m)}</div><div class="meta">${esc([i.b, i.c, i.d].filter(Boolean).join(" · "))}</div></td>
       <td class="num">${i.qty}</td><td class="num">${p == null ? "—" : inr(p)}</td><td class="num">${p == null ? "—" : inr(p * i.qty)}</td></tr>`;
@@ -180,7 +194,7 @@ function card(e) {
   return `<article class="enq${cls}" data-id="${e.id}">
     <div class="head" data-toggle="${e.id}" role="button" tabindex="0" aria-expanded="${open}">
       <div style="min-width:0">
-        <div class="who"><span class="nm">${esc(e.name)}</span><span class="ph">${esc(e.phone)}</span><span class="ref">${esc(e.ref)}</span></div>
+        <div class="who"><span class="nm">${esc(e.name)}</span><span class="ph">${esc(e.phone)}</span><span class="ref">${esc(e.ref)}</span><span class="btag">${esc(brandName(e.brand))}</span></div>
         <div class="sum">${esc(models)}</div>
       </div>
       <div class="badges">${dueChip(e)}<span class="pill s-${e.status}">${STATUS_LABEL[e.status] || e.status}</span><span class="age" title="${esc(fmtDate(e.created_at))}">${ago(e.created_at)}</span></div>
@@ -214,7 +228,7 @@ function card(e) {
 function render() {
   renderTabs();
   const tab = TABS.find((t) => t.k === state.tab);
-  const list = state.all.filter(tab.test).filter((e) => matches(e, state.q)).sort(cmp);
+  const list = state.all.filter(inBrand).filter(tab.test).filter((e) => matches(e, state.q)).sort(cmp);
   $("#list").innerHTML = list.length ? list.map(card).join("") :
     `<div class="placeholder">${state.all.length ? "Nothing here. Try another tab or clear the search." : "No enquiries yet. They appear here as soon as a customer sends the form."}</div>`;
   $("#statusLine").textContent = `${list.length} shown · updated ${state.loadedAt ? state.loadedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "—"}`;
