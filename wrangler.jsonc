@@ -24,7 +24,7 @@
   "vars": {
     "GUPSHUP_APP_NAME": "KitchenWhiz",
     "GUPSHUP_SOURCE": "918904657979",
-    "GUPSHUP_TEMPLATE_ID": "",
+    "GUPSHUP_TEMPLATE_ID": "25d5e042_35bb_4087_94c3_65c78245d0e5",
     // what fills {{1}}, {{2}}… in the template, in order. Template (21 Oct): "Hello! From Kitchen Whiz, thank you for your
     // enquiry with {{1}} for {{2}}. Please call {{3}} for speedy assistance." Choices: name, firstname, ref, brand,
     // products, contact (brand phone numbers, src/brands.js), count, phone, date
