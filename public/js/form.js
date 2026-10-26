@@ -184,7 +184,7 @@ function update(){
     $("#sendNote").textContent="Group: your details are copied when you tap it. In the group, press and hold the message box, paste, and send.";
   } else {
     $("#waGroup").href=`https://wa.me/?text=${enc}`;
-    $("#waGroupSub").textContent="Opens WhatsApp with the details ready";
+    $("#waGroupSub").textContent="Saves, copies the details, opens WhatsApp";
     $("#sendNote").textContent="";
   }
   saveDraft();
@@ -212,12 +212,26 @@ function save(channel){
     .then(({ok,j})=>{ if(ok) showDone(j.ref); else toast(j.error||"Couldn't save the enquiry. Please try again."); return ok; })
     .catch(()=>{ toast("No connection: the enquiry wasn't saved here. Your WhatsApp message still reaches us."); return false; });
 }
+// Tapping the button saves the enquiry, copies the details and shows a pop-up:
+// "select the WhatsApp group and paste the copied message", with an Open WhatsApp button.
 $("#waGroup").addEventListener("click",e=>{
-  if(!validate(true)){ e.preventDefault(); return; }
+  e.preventDefault();
+  if(!validate(true)) return;
   save("group");
-  if(CONFIG.groupLink){ copyText(buildMessage()).then(ok=>toast(ok?"Details copied. Paste them in the group and send.":"Couldn't copy automatically. Use “Copy message” below, then paste in the group.")); }
-  else toast("Saved. WhatsApp opened with the details ready.");
+  const msg=buildMessage();
+  $("#waModalOpen").href=CONFIG.groupLink||"https://wa.me/?text="+encodeURIComponent(msg);
+  copyText(msg).then(ok=>{
+    $("#waModalCopied").textContent=ok?"✓ Message copied":"Couldn't copy automatically: tap Copy again below";
+    $("#waModalCopied").classList.toggle("warn",!ok);
+  });
+  $("#waModal").hidden=false; $("#waModalOpen").focus();
 });
+$("#waModalCopy").onclick=()=>copyText(buildMessage()).then(ok=>{$("#waModalCopied").textContent=ok?"✓ Message copied":"Couldn't copy: use Preview the message below";$("#waModalCopied").classList.toggle("warn",!ok);});
+const closeModal=()=>{$("#waModal").hidden=true;};
+$("#waModalClose").onclick=closeModal;
+$("#waModal").addEventListener("click",e=>{ if(e.target.id==="waModal") closeModal(); });
+$("#waModalOpen").addEventListener("click",()=>setTimeout(closeModal,400));
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#waModal").hidden) closeModal(); });
 $("#copyBtn").onclick=()=>copyText(buildMessage()).then(ok=>toast(ok?"Message copied.":"Couldn't copy. Open the preview and copy the text from there."));
 let clearArmed=false;
 $("#clearBtn").onclick=()=>{
