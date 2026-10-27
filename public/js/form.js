@@ -149,9 +149,11 @@ document.addEventListener("keydown",e=>{
 
 /* message */
 function phoneDigits(){ return $("#phone").value.replace(/\D/g,""); }
+// "+919845012345": one unbroken number so WhatsApp makes it tappable (opens chat / call)
+function waLink(p){ let d=String(p).replace(/\D/g,""); if(d.length===11&&d.startsWith("0")) d=d.slice(1); if(d.length===10) d="91"+d; return "+"+d; }
 function buildMessage(){
   const name=$("#name").value.trim(), phone=$("#phone").value.trim(), com=$("#comment").value.trim();
-  const lines=[`*${CONFIG.title}*`,"",`*Name:* ${name||"—"}`,`*Phone:* ${phone||"—"}`,`*From:* ${state.party==="dealer"?"Dealer":"Customer"}`,""];
+  const lines=[`*${CONFIG.title}*`,"",`*Name:* ${name||"—"}`,`*Phone:* ${phone?waLink(phone):"—"}`,`*From:* ${state.party==="dealer"?"Dealer":"Customer"}`,""];
   lines.push(`*Products (${state.picked.length}):*`);
   if(state.picked.length) state.picked.forEach((p,i)=>lines.push(`${i+1}. ${p.b?p.b+" ":""}${p.m}${p.d?" – "+p.d:""} (${p.c}) × ${p.qty}`));
   else lines.push("—");
