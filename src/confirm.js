@@ -21,10 +21,21 @@ export function waNumber(phone) {
 // WhatsApp template values may not contain new lines, tabs or more than 4 spaces in a row.
 const clean = (s, max = 300) => String(s ?? '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, max) || '-';
 
+// Each product as "model (type, detail)", e.g. "KM-60C (Ice Makers, 60 kg/day) x2".
+// The type is shortened ("Visi Cooler – Canopy … (Fixed System)" → "Visi Cooler"); old-model notes and
+// hand-typed items show just the model.
+function productName(i) {
+  let type = i.c && i.c !== 'Not in list' && i.c !== 'Interest' ? i.c : '';
+  type = type.split(' – ')[0].replace(/\s*\(.*?\)\s*/g, ' ').trim();
+  let detail = i.d && !/^old model|^typed by/i.test(i.d) ? i.d : '';
+  if (detail && type.toLowerCase().includes(detail.toLowerCase())) detail = '';
+  const extra = [type, detail].filter(Boolean).join(', ');
+  return (extra ? `${i.m} (${extra})` : i.m) + (i.qty > 1 ? ' x' + i.qty : '');
+}
 function products(items) {
   if (!items.length) return 'your requirement';
-  const list = items.map((i) => i.m + (i.qty > 1 ? ' x' + i.qty : ''));
-  const shown = list.slice(0, 6).join(', ');
+  const list = items.map(productName);
+  const shown = list.slice(0, 6).join('; ');
   return list.length > 6 ? `${shown} and ${list.length - 6} more` : shown;
 }
 
