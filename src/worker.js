@@ -43,7 +43,7 @@ async function init(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_enquiries_created ON enquiries(created_at)'),
   ]);
   // columns added after launch (WhatsApp confirmation); "duplicate column" means already there
-  for (const col of ["brand TEXT NOT NULL DEFAULT 'hw'", 'confirm_status TEXT', 'confirm_at TEXT', 'confirm_msg_id TEXT', 'confirm_error TEXT']) {
+  for (const col of ["brand TEXT NOT NULL DEFAULT 'hw'", 'party TEXT', 'confirm_status TEXT', 'confirm_at TEXT', 'confirm_msg_id TEXT', 'confirm_error TEXT']) {
     try { await db.prepare(`ALTER TABLE enquiries ADD COLUMN ${col}`).run(); } catch (e) {
       if (!/duplicate column/i.test(String(e && e.message))) throw e;
     }
@@ -104,6 +104,7 @@ async function saveEnquiry(req, env, ctx, brand) {
   const items = cleanItems(body.items);
   const comment = str(body.comment, 4000);
   const channel = str(body.channel, 20);
+  const party = body.party === 'dealer' ? 'dealer' : 'customer';
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) return bad('Missing enquiry id.');
   if (!name) return bad('Name is required.');
   if (digits.length < 10 || digits.length > 15) return bad('Phone number should be 10 to 15 digits.');
@@ -115,14 +116,14 @@ async function saveEnquiry(req, env, ctx, brand) {
   if (existing) {
     // Same enquiry sent again (e.g. both WhatsApp buttons): update it, keep the number.
     const ch = [...new Set([...existing.channel.split(',').filter(Boolean), channel].filter(Boolean))].join(',');
-    await db.prepare('UPDATE enquiries SET name=?, phone=?, items=?, comment=?, channel=?, updated_at=? WHERE id=?')
-      .bind(name, phone, JSON.stringify(items), comment, ch, t, id).run();
+    await db.prepare('UPDATE enquiries SET name=?, phone=?, items=?, comment=?, channel=?, party=?, updated_at=? WHERE id=?')
+      .bind(name, phone, JSON.stringify(items), comment, ch, party, t, id).run();
     return json({ ok: true, id, num: existing.num, ref: refOf(existing), updated: true });
   }
   const row = await db.prepare('SELECT COALESCE(MAX(num), 1000) + 1 AS n FROM enquiries WHERE brand = ?').bind(brand).first();
-  await db.prepare(`INSERT INTO enquiries (id, brand, num, created_at, updated_at, name, phone, items, comment, channel, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, brand, row.n, t, t, name, phone, JSON.stringify(items), comment, channel, str(body.source, 20) || 'form').run();
+  await db.prepare(`INSERT INTO enquiries (id, brand, num, created_at, updated_at, name, phone, items, comment, channel, source, party)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, brand, row.n, t, t, name, phone, JSON.stringify(items), comment, channel, str(body.source, 20) || 'form', party).run();
   // confirmation goes out once, for new enquiries only, after the reply (doesn't slow the form)
   if (confirmEnabled(env)) ctx.waitUntil(confirmAndRecord(env, id, 'Automatic').catch(() => {}));
   return json({ ok: true, id, num: row.n, ref: refOf({ brand, num: row.n }), confirm: confirmEnabled(env) });

@@ -4,7 +4,7 @@ const BRAND = window.BRAND;
 const DATA = window.HW_PRODUCTS;
 const $ = s => document.querySelector(s);
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2))).replace(/-/g,"");
-const state = { brand:"", cat:"", q:"", limit:40, expanded:false, active:0, popOpen:false, picked:[], id:newId(), sent:null };
+const state = { party:"customer", brand:"", cat:"", q:"", limit:40, expanded:false, active:0, popOpen:false, picked:[], id:newId(), sent:null };
 DATA.forEach((d,i)=>{ d.id=i; d.h=(d.m+" "+d.m.replace(/[\s\-\/]/g,"")+" "+d.d+" "+d.d.replace(/[\s\-\/]/g,"")+" "+d.c+" "+d.b).toLowerCase(); d.mc=d.m.toLowerCase().replace(/[\s\-\/]/g,""); d.parts=d.m.toLowerCase().split("/").map(x=>x.replace(/[\s\-]/g,"")); });
 $("#total").textContent = DATA.length;
 
@@ -49,7 +49,7 @@ function render(){
   $("#count").textContent = list.length===DATA.length ? `${DATA.length} models` : `${list.length} of ${DATA.length} models`;
   if(!state.q.trim()) $("#count").insertAdjacentHTML("beforeend",` · <button type="button" class="linkbtn" id="collapse">Hide list</button>`);
   const col=$("#collapse"); if(col) col.onclick=()=>{state.expanded=false;state.brand="";state.cat="";state.limit=40;
-    document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.brand==="")));fillCats();render();};
+    document.querySelectorAll(".seg button[data-brand]").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.brand==="")));fillCats();render();};
   if(!list.length){
     box.innerHTML=`<div class="empty"><span>No model matches “${esc(state.q)}”${state.brand?" in "+state.brand:""}${state.cat?" · "+esc(state.cat):""}.</span>`+
       (state.q.trim()?`<button type="button" class="add" id="addTyped">Add “${esc(state.q.trim())}” to my list anyway</button>`:"")+`</div>`;
@@ -126,9 +126,9 @@ $("#picked").addEventListener("change",e=>{
 });
 
 /* filters */
-document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{
+document.querySelectorAll(".seg button[data-brand]").forEach(b=>b.onclick=()=>{
   state.brand=b.dataset.brand; state.limit=40;
-  document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+  document.querySelectorAll(".seg button[data-brand]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
   fillCats(); render();
 });
 $("#cat").onchange=e=>{state.cat=e.target.value;state.limit=40;render();};
@@ -151,7 +151,7 @@ document.addEventListener("keydown",e=>{
 function phoneDigits(){ return $("#phone").value.replace(/\D/g,""); }
 function buildMessage(){
   const name=$("#name").value.trim(), phone=$("#phone").value.trim(), com=$("#comment").value.trim();
-  const lines=[`*${CONFIG.title}*`,"",`*Name:* ${name||"—"}`,`*Phone:* ${phone||"—"}`,""];
+  const lines=[`*${CONFIG.title}*`,"",`*Name:* ${name||"—"}`,`*Phone:* ${phone||"—"}`,`*From:* ${state.party==="dealer"?"Dealer":"Customer"}`,""];
   lines.push(`*Products (${state.picked.length}):*`);
   if(state.picked.length) state.picked.forEach((p,i)=>lines.push(`${i+1}. ${p.b?p.b+" ":""}${p.m}${p.d?" – "+p.d:""} (${p.c}) × ${p.qty}`));
   else lines.push("—");
@@ -198,7 +198,7 @@ function toast(t){ const el=$("#toast"); el.textContent=t; clearTimeout(toast.t)
 /* save to the team's list */
 function payload(channel){
   return { id:state.id, name:$("#name").value.trim(), phone:$("#phone").value.trim(), comment:$("#comment").value.trim(),
-    items:state.picked.map(p=>({b:p.b,c:p.c,m:p.m,d:p.d,qty:p.qty})), channel, website:$("#website").value };
+    items:state.picked.map(p=>({b:p.b,c:p.c,m:p.m,d:p.d,qty:p.qty})), channel, party:state.party, website:$("#website").value };
 }
 function showDone(ref){
   state.sent={ref:ref||null,at:Date.now()}; saveDraft();
@@ -237,7 +237,7 @@ let clearArmed=false;
 $("#clearBtn").onclick=()=>{
   if(!clearArmed){ clearArmed=true; $("#clearBtn").textContent="Tap again to clear"; setTimeout(()=>{clearArmed=false;$("#clearBtn").textContent="Start a new enquiry";},4000); return; }
   clearArmed=false; $("#clearBtn").textContent="Start a new enquiry";
-  ["#name","#phone","#comment","#q"].forEach(s=>$(s).value=""); state.picked=[]; state.q=""; state.id=newId(); state.sent=null; $("#done").hidden=true;
+  ["#name","#phone","#comment","#q"].forEach(s=>$(s).value=""); state.picked=[]; state.q=""; state.id=newId(); state.sent=null; $("#done").hidden=true; setParty("customer");
   ["#nameMsg","#phoneMsg","#pickMsg"].forEach(s=>$(s).textContent=""); $("#nameWrap").classList.remove("bad"); $("#phoneWrap").classList.remove("bad");
   renderPicked(); render(); update(); toast("Form cleared."); window.scrollTo({top:0,behavior:"smooth"}); $("#name").focus({preventScroll:true});
 };
@@ -249,5 +249,9 @@ $("#clearBtn").onclick=()=>{
 /* every fresh page load starts with an empty form: nothing is kept in the browser */
 function saveDraft(){}
 try{ localStorage.removeItem("hw-enquiry-draft-v1"); }catch(_){}
+
+/* customer or dealer */
+function setParty(v){ state.party=v; document.querySelectorAll("#party button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.party===v))); }
+document.querySelectorAll("#party button").forEach(b=>b.onclick=()=>{ setParty(b.dataset.party); update(); });
 
 fillCats(); renderPicked(); render(); update();

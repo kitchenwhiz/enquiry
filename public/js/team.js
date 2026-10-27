@@ -70,7 +70,7 @@ function cmp(a, b) { const x = sortKey(a), y = sortKey(b); for (let i = 0; i < 3
 
 function matches(e, q) {
   if (!q) return true;
-  const hay = [brandName(e.brand), e.name, e.phone, e.phone.replace(/\D/g, ""), e.ref, e.comment, ...e.items.map((i) => i.m + " " + i.d + " " + i.c + " " + i.b), ...e.notes.map((n) => n.text + " " + n.author)].join(" ").toLowerCase();
+  const hay = [brandName(e.brand), e.party || "", e.name, e.phone, e.phone.replace(/\D/g, ""), e.ref, e.comment, ...e.items.map((i) => i.m + " " + i.d + " " + i.c + " " + i.b), ...e.notes.map((n) => n.text + " " + n.author)].join(" ").toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
 }
 
@@ -206,7 +206,7 @@ function card(e) {
   return `<article class="enq${cls}" data-id="${e.id}">
     <div class="head" data-toggle="${e.id}" role="button" tabindex="0" aria-expanded="${open}">
       <div style="min-width:0">
-        <div class="who"><span class="nm">${esc(e.name)}</span><span class="ph">${esc(e.phone)}</span><span class="ref">${esc(e.ref)}</span><span class="btag">${esc(brandName(e.brand))}</span></div>
+        <div class="who"><span class="nm">${esc(e.name)}</span><span class="ph">${esc(e.phone)}</span><span class="ref">${esc(e.ref)}</span><span class="btag">${esc(brandName(e.brand))}</span>${e.party === "dealer" ? '<span class="ptag dealer">Dealer</span>' : e.party === "customer" ? '<span class="ptag">Customer</span>' : ""}</div>
         <div class="sum">${esc(models)}</div>
       </div>
       <div class="badges">${dueChip(e)}<span class="pill s-${e.status}">${STATUS_LABEL[e.status] || e.status}</span><span class="age" title="${esc(fmtDate(e.created_at))}">${ago(e.created_at)}</span></div>

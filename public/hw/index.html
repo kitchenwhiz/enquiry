@@ -38,6 +38,7 @@ body{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
 .modal-card .copied{margin:0;font-weight:600;color:var(--wa)}
 .modal-card .copied.warn{color:var(--err)}
 .modal-links{display:flex;justify-content:space-between}
+.party{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:13px;font-weight:600}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .done{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r);padding:12px 14px;font-size:14px;display:grid;gap:4px}
 .done b{color:var(--accent)}
@@ -62,6 +63,13 @@ body{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
         <div id="phoneWrap" style="display:grid;gap:4px">
           <label for="phone">Phone number<input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="e.g. 98450 12345"></label>
           <div class="msg" id="phoneMsg"></div>
+        </div>
+      </div>
+      <div class="party" role="group" aria-labelledby="partyLbl">
+        <span id="partyLbl">Enquiry from</span>
+        <div class="seg" id="party">
+          <button type="button" data-party="customer" aria-pressed="true">Customer</button>
+          <button type="button" data-party="dealer" aria-pressed="false">Dealer</button>
         </div>
       </div>
       <label class="hp" aria-hidden="true">Website<input id="website" name="website" tabindex="-1" autocomplete="off"></label>
@@ -144,6 +152,6 @@ body{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
 <script>window.BRAND = "hw";</script>
 <script src="/hw/config.js?v=4"></script>
 <script src="/hw/products.js?v=2"></script>
-<script src="/js/form.js?v=11"></script>
+<script src="/js/form.js?v=12"></script>
 </body>
 </html>
