@@ -206,6 +206,13 @@ export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const p = url.pathname.replace(/\/+$/, '') || '/';
+    // Team list only on its own address (owner, 27 Oct): not reachable through enquiry.kitchenwhiz.in.
+    const isTeam = p === '/team' || p.startsWith('/team/') || p.startsWith('/api/team') || p.startsWith('/hw/team');
+    const teamHost = env.TEAM_HOST || 'enquiry.kitchenwhiz.workers.dev';
+    const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (isTeam && url.hostname !== teamHost && !local) {
+      return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
+    }
     if (!p.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
       await init(env.DB);

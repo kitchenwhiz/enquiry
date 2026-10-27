@@ -6,7 +6,7 @@ One enquiry form and one team list per partner brand, on one Cloudflare Worker w
 |---|---|
 | `enquiry.kitchenwhiz.in/` | Public "Coming soon" page (to become the Instagram landing page) |
 | `enquiry.kitchenwhiz.in/hw` | Hoshizaki & Western enquiry form: name, phone, model search (no prices), comments; floating Start a new enquiry + Send to WhatsApp group |
-| `enquiry.kitchenwhiz.in/team` | ONE team list for every brand (brand filter when there are several): dealer prices, call / WhatsApp, comments, follow-up dates, status, edit products, WhatsApp confirmation status |
+| `enquiry.kitchenwhiz.workers.dev/team` (only there) | ONE team list for every brand (brand filter when there are several): dealer prices, call / WhatsApp, comments, follow-up dates, status, edit products, WhatsApp confirmation status |
 
 Enquiry numbers run per brand: HW-1001, HW-1002… `/hw/team` goes to `/team`.
 
@@ -45,9 +45,12 @@ Every new enquiry gets one WhatsApp confirmation to the customer's number, sent 
 - Secret `GUPSHUP_API_KEY`: Cloudflare → Workers & Pages → enquiry → Settings → Variables and Secrets → Add → type **Secret**. Never put it in the code.
 - Until all four are set, nothing is sent. Code: `src/confirm.js`.
 
+## Team list address
+`/team`, `/hw/team` and `/api/team/*` answer only on `TEAM_HOST` (wrangler.jsonc, `enquiry.kitchenwhiz.workers.dev`). On enquiry.kitchenwhiz.in they return 404 (owner, 27 Oct).
+
 ## Access (to do, pending task)
 **Team list to be moved under email login** (owner, 21 Oct): only the team's @kitchenwhiz.in emails can open `/team`; the brand forms stay open.
-`/team/` and `/api/team/*` are open to anyone who has the link (decided 8 Oct 2026: no restrictions for now). They show customer phone numbers and dealer prices. To add the @kitchenwhiz.in login later: Cloudflare Zero Trust → Access → Applications → Add → Self-hosted, paths `enquiry.kitchenwhiz.in/team` and `/api/team`, policy "emails ending in @kitchenwhiz.in". The customer form (`/` and `POST /api/enquiries`) stays public.
+`/team/` and `/api/team/*` are open to anyone who has the link (decided 8 Oct 2026: no restrictions for now). They show customer phone numbers and dealer prices. To add the @kitchenwhiz.in login later: Cloudflare Zero Trust → Access → Applications → Add → Self-hosted, host `enquiry.kitchenwhiz.workers.dev`, paths `team` and `api/team`, policy "emails ending in @kitchenwhiz.in". The customer form (`/` and `POST /api/enquiries`) stays public.
 
 ## Local
 `npm install`, `npm run dev` → http://localhost:8787 and http://localhost:8787/team/

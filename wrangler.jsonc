@@ -9,7 +9,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/team", "/team/*", "/hw/team", "/hw/team/*"]
   },
   // Database for enquiries and team notes. Tables are created automatically on first use.
   // No database_id: Wrangler creates the database on the first deploy and remembers it.
@@ -22,6 +22,8 @@
   // add it in Cloudflare → Workers & Pages → enquiry → Settings → Variables and Secrets
   // as a Secret named GUPSHUP_API_KEY. Until all four are set, no confirmation is sent.
   "vars": {
+    // The team list (/team, /api/team) answers ONLY on this address; elsewhere (enquiry.kitchenwhiz.in) it is "not found".
+    "TEAM_HOST": "enquiry.kitchenwhiz.workers.dev",
     "GUPSHUP_APP_NAME": "KitchenWhiz",
     "GUPSHUP_SOURCE": "918904657979",
     "GUPSHUP_TEMPLATE_ID": "d8d5f96b-224c-4dd5-a872-b4e71d970eba", // template enquiry_confirmation
