@@ -32,5 +32,7 @@
     // products, contact (brand phone numbers, src/brands.js), count, phone, date
     "GUPSHUP_TEMPLATE_PARAMS": "brand,products,contact"
   },
+  // Dealer prices come from the Quote Builder (Worker "uspquote", same Cloudflare account) over this private link.
+  "services": [ { "binding": "PRICES", "service": "uspquote" } ],
   "observability": { "enabled": true }
 }

@@ -13,6 +13,17 @@ import { confirmEnabled, sendConfirmation } from './confirm.js';
 const STATUSES = ['new', 'contacted', 'quoted', 'won', 'lost'];
 let ready = false;
 
+/* Hoshizaki & Western dealer prices from the Quote Builder: { prices: { code: dp } } or null */
+async function liveDp(env) {
+  if (!env.PRICES) return null;
+  try {
+    const r = await env.PRICES.fetch('https://uspquote.internal/api/feed/prices?for=enquiry');
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d && d.ok && d.prices && Object.keys(d.prices).length ? { prices: d.prices } : null;
+  } catch { return null; }
+}
+
 async function init(db) {
   if (ready) return;
   await db.batch([
@@ -220,8 +231,12 @@ export default {
       // ---- team list: all brands together ----
       if (p === '/api/team/enquiries' && req.method === 'GET') return await listEnquiries(env);
       if (p === '/api/team/prices' && req.method === 'GET') {
-        return json({ prices: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, b.prices])),
-          notes: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, `${b.priceNote}, wef ${b.wef}`])) });
+        /* since 28 Oct 2026: dealer prices come from the Quote Builder (service binding PRICES → uspquote), laid over
+           the copy in src/brands so a code the quote builder doesn't have still shows; the copy alone if it can't be reached */
+        const live = await liveDp(env);
+        return json({ prices: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, k === 'hw' && live ? { ...b.prices, ...live.prices } : b.prices])),
+          notes: Object.fromEntries(Object.entries(BRANDS).map(([k, b]) => [k, k === 'hw' && live ? `${b.priceNote}, from the Quote Builder price list` : `${b.priceNote}, wef ${b.wef}`])),
+          source: live ? 'quote-builder' : 'built-in' });
       }
       const m = p.match(/^\/api\/team\/enquiries\/([A-Za-z0-9_-]{8,64})\/(notes|items|confirm)$/);
       if (m) {
